@@ -2,21 +2,73 @@ import React, { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { ArrowLeft, Check } from "lucide-react-native";
-import { C, HERO_GRADIENT } from "../theme";
-import { Field, Btn } from "../components/Atoms";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { C, HERO_GRADIENT } from "../../theme";
+import { Field, Btn } from "../../components/Atoms";
+import { FocusedStatusBar } from "../../components/FocusedStatusBar";
+import { register } from "../../api/auth";
+import { errorMessage } from "../../api/client";
+import { useSession } from "../../context/SessionContext";
+import { useSetup } from "../../context/SetupContext";
+import type { RootStackParamList } from "../../navigation/routes";
 
-export default function SignupScreen({ onSignup, onBack }: { onSignup: () => void; onBack: () => void }) {
-  const [name, setName] = useState("");
-  const [mobile, setMobile] = useState("");
+type Props = NativeStackScreenProps<RootStackParamList, "Signup">;
+
+export default function SignupScreen({ navigation }: Props) {
+  const { setUser } = useSession();
+  const { reset } = useSetup();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [agreed, setAgreed] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (loading) return;
+
+    if (!firstName.trim() || !lastName.trim()) {
+      setError("Enter your first and last name.");
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    if (pass.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (pass !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
+    if (!agreed) {
+      setError("Please accept the Terms of Service to continue.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const user = await register({ firstName, lastName, email, password: pass });
+      setUser(user);
+      reset();
+      navigation.reset({ index: 0, routes: [{ name: "SetupHousehold" }] }); // new user -> Setup 1
+    } catch (e) {
+      setError(errorMessage(e));
+      setLoading(false);
+    }
+  };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ flexGrow: 1 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <FocusedStatusBar style="light" />
       <LinearGradient colors={HERO_GRADIENT} style={styles.hero}>
         <View style={styles.circle} />
-        <Pressable onPress={onBack} style={styles.backBtn}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <ArrowLeft size={18} color="#FFF" strokeWidth={2} />
         </Pressable>
         <Text style={styles.title}>Create Account</Text>
@@ -24,10 +76,11 @@ export default function SignupScreen({ onSignup, onBack }: { onSignup: () => voi
       </LinearGradient>
 
       <View style={styles.form}>
-        <Field label="Full Name" value={name} onChange={setName} placeholder="Juan dela Cruz" />
-        <Field label="Mobile Number" value={mobile} onChange={setMobile} placeholder="+63 917 000 0000" keyboardType="phone-pad" />
+        <Field label="First Name" value={firstName} onChange={setFirstName} placeholder="Juan" />
+        <Field label="Last Name" value={lastName} onChange={setLastName} placeholder="dela Cruz" />
         <Field label="Email Address" value={email} onChange={setEmail} placeholder="juan@email.com" keyboardType="email-address" />
         <Field label="Password" value={pass} onChange={setPass} placeholder="At least 8 characters" secureTextEntry />
+        <Field label="Confirm Password" value={confirm} onChange={setConfirm} placeholder="Re-enter your password" secureTextEntry />
 
         <Pressable onPress={() => setAgreed((a) => !a)} style={styles.agreeRow}>
           <View style={[styles.checkbox, { backgroundColor: agreed ? C.primary : "#FFF", borderColor: agreed ? C.primary : C.border }]}>
@@ -38,13 +91,15 @@ export default function SignupScreen({ onSignup, onBack }: { onSignup: () => voi
           </Text>
         </Pressable>
 
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
         <View style={{ marginTop: 8 }}>
-          <Btn onPress={onSignup}>Create My Account</Btn>
+          <Btn onPress={submit}>{loading ? "Creating account…" : "Create My Account"}</Btn>
         </View>
 
         <Text style={styles.loginRow}>
           Already have an account?{" "}
-          <Text style={styles.link} onPress={onBack}>Log in</Text>
+          <Text style={styles.link} onPress={() => navigation.goBack()}>Log in</Text>
         </Text>
       </View>
     </ScrollView>
@@ -62,5 +117,6 @@ const styles = StyleSheet.create({
   checkbox: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, alignItems: "center", justifyContent: "center", marginTop: 2 },
   agreeText: { flex: 1, fontSize: 12, color: C.sub, lineHeight: 18 },
   link: { color: C.primary, fontWeight: "600" },
+  error: { color: C.red, fontSize: 12, marginTop: 4 },
   loginRow: { textAlign: "center", fontSize: 13, color: C.muted, marginTop: 20 },
 });

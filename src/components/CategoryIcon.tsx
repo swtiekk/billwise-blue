@@ -1,27 +1,29 @@
 import React from "react";
-import {
-  Zap, Droplets, Wifi, Home, ShieldCheck, Landmark, Smartphone, FileText,
-} from "lucide-react-native";
+import { Zap, Droplets, Wifi, Home, ShieldCheck, Landmark, Smartphone, FileText } from "lucide-react-native";
+import { C } from "../theme";
 import type { BillCategory } from "../data";
+
+// Re-created: your original file was missing. Same props as before (category, size, color).
+const ICONS: Record<BillCategory, any> = {
+  electricity: Zap,
+  water: Droplets,
+  internet: Wifi,
+  rent: Home,
+  insurance: ShieldCheck,
+  loan: Landmark,
+  phone: Smartphone,
+  other: FileText,
+};
 
 export function CategoryIcon({
   category,
-  size = 18,
-  color = "#2563EB",
+  size = 20,
+  color = C.primary,
 }: {
   category: BillCategory;
   size?: number;
   color?: string;
 }) {
-  const props = { size, color, strokeWidth: 1.75 };
-  switch (category) {
-    case "electricity": return <Zap {...props} />;
-    case "water": return <Droplets {...props} />;
-    case "internet": return <Wifi {...props} />;
-    case "rent": return <Home {...props} />;
-    case "insurance": return <ShieldCheck {...props} />;
-    case "loan": return <Landmark {...props} />;
-    case "phone": return <Smartphone {...props} />;
-    default: return <FileText {...props} />;
-  }
+  const Icon = ICONS[category] ?? FileText;
+  return <Icon size={size} color={color} strokeWidth={1.75} />;
 }

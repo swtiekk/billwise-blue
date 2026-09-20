@@ -1,12 +1,20 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, Alert, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import { Wallet, CircleDollarSign } from "lucide-react-native";
-import { C, sh, HERO_GRADIENT, fmt } from "../theme";
-import { Field, Btn } from "../components/Atoms";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { C, sh, HERO_GRADIENT, fmt } from "../../theme";
+import { Field, Btn } from "../../components/Atoms";
+import { FocusedStatusBar } from "../../components/FocusedStatusBar";
+import { login } from "../../api/auth";
+import { errorMessage } from "../../api/client";
+import { useSession } from "../../context/SessionContext";
+import { useSetup } from "../../context/SetupContext";
+import type { RootStackParamList } from "../../navigation/routes";
 
-// Multi-color Google "G" logo, ported from the web version's inline SVG paths
+type Props = NativeStackScreenProps<RootStackParamList, "Login">;
+
 function GoogleIcon() {
   return (
     <Svg width={18} height={18} viewBox="0 0 24 24">
@@ -18,18 +26,41 @@ function GoogleIcon() {
   );
 }
 
-export default function LoginScreen({ onLogin, onGoToSignup }: { onLogin: () => void; onGoToSignup: () => void }) {
+export default function LoginScreen({ navigation }: Props) {
+  const { setUser } = useSession();
+  const { reset } = useSetup();
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (loading) return;
+    if (!email.trim() || !pass) {
+      setError("Enter your email and password.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const user = await login(email, pass);
+      setUser(user);
+      reset(); // never carry over another account's unfinished setup
+      // Returning user -> Home. Signed up but never finished setup -> Setup 1.
+      navigation.reset({ index: 0, routes: [{ name: user.setupCompleted ? "Home" : "SetupHousehold" }] });
+    } catch (e) {
+      setError(errorMessage(e));
+      setLoading(false);
+    }
+  };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ flexGrow: 1 }}>
-      {/* Hero */}
+    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <FocusedStatusBar style="light" />
       <LinearGradient colors={HERO_GRADIENT} style={styles.hero}>
         <View style={[styles.circleBig]} />
         <View style={[styles.circleSmall]} />
 
-        {/* Floating stacked card illustration */}
         <View style={styles.illustrationWrap}>
           <View style={styles.cardBack1} />
           <View style={styles.cardBack2} />
@@ -59,7 +90,6 @@ export default function LoginScreen({ onLogin, onGoToSignup }: { onLogin: () => 
         </Text>
       </LinearGradient>
 
-      {/* Form */}
       <View style={styles.form}>
         <Text style={styles.welcome}>Welcome back</Text>
         <Text style={styles.welcomeSub}>Log in to your BillWise account</Text>
@@ -71,8 +101,10 @@ export default function LoginScreen({ onLogin, onGoToSignup }: { onLogin: () => 
           <Text style={styles.forgot}>Forgot password?</Text>
         </Pressable>
 
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
         <View style={{ marginTop: 8 }}>
-          <Btn onPress={onLogin}>Log In</Btn>
+          <Btn onPress={submit}>{loading ? "Logging in…" : "Log In"}</Btn>
         </View>
 
         <View style={styles.dividerRow}>
@@ -81,14 +113,17 @@ export default function LoginScreen({ onLogin, onGoToSignup }: { onLogin: () => 
           <View style={styles.dividerLine} />
         </View>
 
-        <Pressable style={({ pressed }) => [styles.googleBtn, sh.sm, pressed && { opacity: 0.85 }]}>
+        <Pressable
+          onPress={() => Alert.alert("Coming soon", "Google sign-in isn't available yet.")}
+          style={({ pressed }) => [styles.googleBtn, sh.sm, pressed && { opacity: 0.85 }]}
+        >
           <GoogleIcon />
           <Text style={styles.googleText}>Sign in with Google</Text>
         </Pressable>
 
         <Text style={styles.signupRow}>
           Don't have an account?{" "}
-          <Text style={styles.signupLink} onPress={onGoToSignup}>Sign up</Text>
+          <Text style={styles.signupLink} onPress={() => navigation.navigate("Signup")}>Sign up</Text>
         </Text>
       </View>
     </ScrollView>
@@ -117,6 +152,7 @@ const styles = StyleSheet.create({
   welcome: { fontSize: 20, fontWeight: "700", color: C.text, marginBottom: 2 },
   welcomeSub: { fontSize: 13, color: C.muted, marginBottom: 20 },
   forgot: { fontSize: 12, color: C.primary, fontWeight: "600" },
+  error: { color: C.red, fontSize: 12, marginTop: 4 },
   dividerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 18 },
   dividerLine: { flex: 1, height: 1, backgroundColor: C.border },
   dividerText: { fontSize: 12, color: C.muted },

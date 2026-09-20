@@ -73,6 +73,28 @@ export const TIPS = [
   { title: "Build Emergency Fund", desc: "Save ₱500/month extra to build a ₱10K emergency buffer within 20 months.", action: "Start Saving", iconKey: "savings" },
 ] as const;
 
+export type NotifKind = "overdue" | "due-soon" | "risk" | "info";
+export type NotifGroup = "Today" | "This Week";
+
+export interface Notif {
+  id: string;
+  kind: NotifKind;
+  title: string;
+  desc: string;
+  time: string;
+  group: NotifGroup;
+  read: boolean;
+}
+
+export const INITIAL_NOTIFS: Notif[] = [
+  { id: "n1", kind: "overdue", title: "Meralco Bill is Overdue", desc: "Your ₱4,250 electric bill was due Sep 14. Late surcharges of 2% may apply.", time: "2 hours ago", group: "Today", read: false },
+  { id: "n2", kind: "due-soon", title: "Globe Internet Due in 3 Days", desc: "₱1,899 is due on Sep 17. Pay before the due date to avoid disconnection.", time: "5 hours ago", group: "Today", read: false },
+  { id: "n3", kind: "risk", title: "Risk Score Increased to 68", desc: "Your financial risk is now High. Overdue bills are the primary driver. Check your recommendations.", time: "Today, 8:00 AM", group: "Today", read: false },
+  { id: "n4", kind: "due-soon", title: "Maynilad Water Bill Coming Up", desc: "₱780 is due Sep 20 — 3 days from now. Set a reminder to stay on track.", time: "Yesterday", group: "This Week", read: true },
+  { id: "n5", kind: "info", title: "SSS Loan Payment Reminder", desc: "Your ₱3,500 SSS loan payment is due Sep 25. You have 8 days to prepare.", time: "Mon, 9:00 AM", group: "This Week", read: true },
+  { id: "n6", kind: "info", title: "Budget Tip: Reduce Loan Exposure", desc: "Loan payments make up 31% of your income. Consider restructuring to lower your risk score.", time: "Sun, 11:30 AM", group: "This Week", read: true },
+];
+
 export const SETTINGS_GROUPS = [
   { section: "Account", items: [
     { iconKey: "user", label: "Personal Information", sub: "Maria Santos" },
