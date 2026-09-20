@@ -5,21 +5,26 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, fmt } from "../../theme";
 import { Field, FL } from "../../components/Atoms";
 import { SetupLayout } from "../../components/SetupLayout";
+import { ScreenLoading } from "../../components/ScreenLoading";
 import { useSetup, combinedIncome } from "../../context/SetupContext";
 import { useSession } from "../../context/SessionContext";
+import { useLoadDraft } from "../../hooks/useLoadDraft";
 import { bandFor } from "../../constants/options";
 import { buildSetupPayload, submitSetup } from "../../api/setup";
+import { saveRangesEdit } from "../../api/edit";
 import { errorMessage } from "../../api/client";
 import { monthYear } from "../../utils/dates";
 import type { RootStackParamList } from "../../navigation/routes";
 
-type Props = NativeStackScreenProps<RootStackParamList, "SetupRanges">;
+type Props = NativeStackScreenProps<RootStackParamList, "SetupRanges" | "EditRanges">;
 
 const money = (v: string) => v.replace(/[^0-9.]/g, "");
 
-export default function SetupRangesScreen({ navigation }: Props) {
+export default function SetupRangesScreen({ navigation, route }: Props) {
+  const edit = route.name === "EditRanges";
   const { draft, patch, updateBill, reset } = useSetup();
   const { setUser } = useSession();
+  const { loading: loadingDraft, error: loadError, reload } = useLoadDraft(edit);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,10 +50,14 @@ export default function SetupRangesScreen({ navigation }: Props) {
     setLoading(true);
     setError(null);
     try {
-      await submitSetup(buildSetupPayload(draft));
-      reset();
-      setUser((u) => (u ? { ...u, setupCompleted: true } : u));
-      // reset() so the back button can't return to the setup screens
+      if (edit) {
+        await saveRangesEdit(draft);
+      } else {
+        await submitSetup(buildSetupPayload(draft));
+        reset();
+        setUser((u) => (u ? { ...u, setupCompleted: true } : u));
+      }
+      // reset() so the back button can't return to these screens; Analysis then opens Home
       navigation.reset({ index: 0, routes: [{ name: "Analysis" }] });
     } catch (e) {
       setError(errorMessage(e));
@@ -56,14 +65,18 @@ export default function SetupRangesScreen({ navigation }: Props) {
     }
   };
 
+  if (edit && (loadingDraft || loadError)) {
+    return <ScreenLoading error={loadError} onRetry={reload} onBack={() => navigation.goBack()} />;
+  }
+
   return (
     <SetupLayout
-      step={4}
-      title="Budget Ranges"
+      step={edit ? undefined : 4}
+      title={edit ? "Edit Budget Ranges" : "Budget Ranges"}
       subtitle="Set a minimum and maximum you expect to pay for each bill."
       onBack={() => navigation.goBack()}
       onNext={submit}
-      nextLabel={loading ? "Submitting…" : "Submit Setup"}
+      nextLabel={edit ? (loading ? "Saving…" : "Save Changes") : loading ? "Submitting…" : "Submit Setup"}
       error={error}
     >
       <View style={styles.periodRow}>

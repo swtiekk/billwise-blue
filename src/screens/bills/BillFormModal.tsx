@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { ArrowLeft } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
-import { Field, Sel, Btn, FL, Toggle } from "../../components/Atoms";
+import { Field, Sel, Btn, Toggle } from "../../components/Atoms";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { BILL_CATEGORIES } from "../../constants/options";
 import { publishBill } from "../../navigation/billBus";
@@ -11,13 +11,21 @@ import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "BillForm">;
 
+const money = (v: string) => v.replace(/[^0-9.]/g, "");
+
 export default function BillFormModal({ navigation, route }: Props) {
+  const editing = route.params?.edit;
   const initial = route.params?.initial;
-  const [name, setName] = useState(initial?.name ?? "");
-  const [category, setCategory] = useState(initial?.category ?? "Electricity");
-  const [dueDay, setDueDay] = useState("");
-  const [grace, setGrace] = useState("0");
-  const [penalty, setPenalty] = useState(true);
+  // Setup 3 collects amounts later (Setup 4); Edit Budget Items has no later step, so ask here.
+  const needsRange = !!route.params?.needsRange || !!editing;
+
+  const [name, setName] = useState(editing?.name ?? initial?.name ?? "");
+  const [category, setCategory] = useState(editing?.category ?? initial?.category ?? "Electricity");
+  const [dueDay, setDueDay] = useState(editing ? String(editing.dueDay) : "");
+  const [grace, setGrace] = useState(editing ? String(editing.graceDays) : "0");
+  const [penalty, setPenalty] = useState(editing?.hasPenalty ?? true);
+  const [min, setMin] = useState(editing && editing.min > 0 ? String(editing.min) : "");
+  const [max, setMax] = useState(editing && editing.max > 0 ? String(editing.max) : "");
   const [error, setError] = useState<string | null>(null);
 
   const save = () => {
@@ -27,7 +35,25 @@ export default function BillFormModal({ navigation, route }: Props) {
     if (!Number.isInteger(day) || day < 1 || day > 31) return setError("Due day must be a number from 1 to 31.");
     if (!Number.isInteger(graceN) || graceN < 0) return setError("Grace period must be 0 or more days.");
 
-    publishBill({ name: name.trim(), category, dueDay: day, graceDays: graceN, hasPenalty: penalty });
+    let lo: number | undefined;
+    let hi: number | undefined;
+    if (needsRange) {
+      lo = Number(min);
+      hi = Number(max);
+      if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo <= 0 || hi <= 0) return setError("Enter a minimum and maximum amount.");
+      if (lo > hi) return setError("The minimum can't be higher than the maximum.");
+    }
+
+    publishBill({
+      id: editing?.id,
+      name: name.trim(),
+      category,
+      dueDay: day,
+      graceDays: graceN,
+      hasPenalty: penalty,
+      min: lo,
+      max: hi,
+    });
     navigation.goBack();
   };
 
@@ -38,7 +64,7 @@ export default function BillFormModal({ navigation, route }: Props) {
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <ArrowLeft size={18} color={C.primaryDk} strokeWidth={2} />
         </Pressable>
-        <Text style={styles.headerTitle}>Add Bill</Text>
+        <Text style={styles.headerTitle}>{editing ? "Edit Bill" : "Add Bill"}</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 4 }} keyboardShouldPersistTaps="handled">
@@ -62,6 +88,17 @@ export default function BillFormModal({ navigation, route }: Props) {
           placeholder="0"
           keyboardType="numeric"
         />
+
+        {needsRange ? (
+          <View style={{ flexDirection: "row", gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Field label="Min Amount (₱)" value={min} onChange={(v) => setMin(money(v))} placeholder="0" keyboardType="numeric" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field label="Max Amount (₱)" value={max} onChange={(v) => setMax(money(v))} placeholder="0" keyboardType="numeric" />
+            </View>
+          </View>
+        ) : null}
 
         <View style={[styles.toggleCard, sh.sm]}>
           <View style={{ flex: 1 }}>

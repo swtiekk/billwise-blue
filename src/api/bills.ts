@@ -45,6 +45,7 @@ export interface BudgetBill {
   name: string;
   category: BillCategory; // icon key
   categoryDesc: string;
+  amount: number | null; // last actual amount (set by Update This Period's Bills or a scan)
   amountMin: number;
   amountMax: number;
   dueDate: string | null; // YYYY-MM-DD
@@ -57,7 +58,8 @@ export interface BudgetBill {
   status: BillStatus;
 }
 
-function parseRange(range: string | null | undefined): [number, number] {
+/** "2000.00-2500.00" -> [2000, 2500] */
+export function parseRange(range: string | null | undefined): [number, number] {
   const parts = (range ?? "").replace(/[,\s]/g, "").split("-");
   const lo = Number(parts[0]);
   const hi = Number(parts[1] ?? parts[0]);
@@ -82,6 +84,7 @@ export function mapBill(b: ApiBill): BudgetBill {
     name: b.item_desc ?? "Bill",
     category: categoryFromText(`${categoryDesc} ${b.item_desc ?? ""}`),
     categoryDesc,
+    amount: b.amount != null ? Number(b.amount) : null,
     amountMin: lo,
     amountMax: hi,
     dueDate: b.actual_due_date,

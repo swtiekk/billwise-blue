@@ -5,21 +5,29 @@ import { C, fmt } from "../../theme";
 import { Sel } from "../../components/Atoms";
 import { DateField } from "../../components/DateField";
 import { SetupLayout } from "../../components/SetupLayout";
+import { ScreenLoading } from "../../components/ScreenLoading";
 import { useSetup, combinedIncome } from "../../context/SetupContext";
+import { useLoadDraft } from "../../hooks/useLoadDraft";
+import { saveIncomeEdit } from "../../api/edit";
+import { errorMessage } from "../../api/client";
 import { FREQUENCIES, INCOME_BANDS, bandFor } from "../../constants/options";
 import type { RootStackParamList } from "../../navigation/routes";
 
-type Props = NativeStackScreenProps<RootStackParamList, "SetupIncome">;
+type Props = NativeStackScreenProps<RootStackParamList, "SetupIncome" | "EditIncome">;
 
-export default function SetupIncomeScreen({ navigation }: Props) {
+export default function SetupIncomeScreen({ navigation, route }: Props) {
+  const edit = route.name === "EditIncome";
   const { draft, updateEarner } = useSetup();
+  const { loading, error: loadError, reload } = useLoadDraft(edit);
   const [activeId, setActiveId] = useState<string | undefined>(draft.earners[0]?.id);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const earner = draft.earners.find((e) => e.id === activeId) ?? draft.earners[0];
   const combined = combinedIncome(draft.earners, bandFor);
 
-  const next = () => {
+  const next = async () => {
+    if (saving) return;
     for (const e of draft.earners) {
       if (!e.incomeRange || !e.nextPayday) {
         setActiveId(e.id);
@@ -28,16 +36,34 @@ export default function SetupIncomeScreen({ navigation }: Props) {
       }
     }
     setError(null);
-    navigation.navigate("SetupBills");
+
+    if (!edit) {
+      navigation.navigate("SetupBills");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await saveIncomeEdit(draft);
+      navigation.reset({ index: 0, routes: [{ name: "Analysis" }] }); // Save Changes -> Loading -> Home
+    } catch (e) {
+      setError(errorMessage(e));
+      setSaving(false);
+    }
   };
+
+  if (edit && (loading || loadError)) {
+    return <ScreenLoading error={loadError} onRetry={reload} onBack={() => navigation.goBack()} />;
+  }
 
   return (
     <SetupLayout
-      step={2}
-      title="Income Setup"
-      subtitle="How much does each earner bring in, and when?"
+      step={edit ? undefined : 2}
+      title={edit ? "Edit Income Details" : "Income Setup"}
+      subtitle={edit ? "Update what each earner brings in, and when." : "How much does each earner bring in, and when?"}
       onBack={() => navigation.goBack()}
       onNext={next}
+      nextLabel={edit ? (saving ? "Saving…" : "Save Changes") : "Next"}
       error={error}
     >
       {draft.earners.length > 1 ? (

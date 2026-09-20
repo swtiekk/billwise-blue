@@ -11,14 +11,18 @@ import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { BILL_CATEGORIES } from "../../constants/options";
 import { guessCategoryLabel, scanBill } from "../../api/bills";
 import { errorMessage } from "../../api/client";
-import { publishBill } from "../../navigation/billBus";
+import { publishAmount, publishBill } from "../../navigation/billBus";
 import { formatLong } from "../../utils/dates";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ScanBill">;
 type Step = "camera" | "processing" | "results";
 
-export default function ScanBillScreen({ navigation }: Props) {
+export default function ScanBillScreen({ navigation, route }: Props) {
+  // "Scan New Bill" on Update This Period's Bills only needs the amount for one existing bill.
+  const forBillId = route.params?.forBillId;
+  const amountOnly = !!forBillId;
+
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
@@ -47,7 +51,7 @@ export default function ScanBillScreen({ navigation }: Props) {
       setGrace("0");
       setPenalty(true);
       // If OCR missed something, go straight to editing so the user can fill it in.
-      setEditing(!extracted.merchant || extracted.amount == null || !extracted.due_date);
+      setEditing(amountOnly ? extracted.amount == null : !extracted.merchant || extracted.amount == null || !extracted.due_date);
       setFormError(null);
       setStep("results");
     } catch (e) {
@@ -73,9 +77,16 @@ export default function ScanBillScreen({ navigation }: Props) {
 
   const confirm = () => {
     const amt = Number(amount.replace(/,/g, ""));
+    if (!Number.isFinite(amt) || amt <= 0) return setFormError("Enter an amount greater than 0.");
+
+    if (amountOnly && forBillId) {
+      publishAmount(forBillId, amt);
+      navigation.goBack();
+      return;
+    }
+
     const graceN = Number(grace || "0");
     if (!name.trim()) return setFormError("Enter the bill name.");
-    if (!Number.isFinite(amt) || amt <= 0) return setFormError("Enter an amount greater than 0.");
     if (!dueDate) return setFormError("Choose the due date.");
     if (!Number.isInteger(graceN) || graceN < 0) return setFormError("Grace period must be 0 or more days.");
 
@@ -87,6 +98,8 @@ export default function ScanBillScreen({ navigation }: Props) {
       graceDays: graceN,
       hasPenalty: penalty,
       amount: amt,
+      min: amt, // a scanned bill has one exact amount
+      max: amt,
     });
     navigation.goBack();
   };
@@ -111,11 +124,19 @@ export default function ScanBillScreen({ navigation }: Props) {
           <Pressable onPress={() => setStep("camera")} style={styles.lightBack}>
             <ArrowLeft size={18} color={C.primaryDk} strokeWidth={2} />
           </Pressable>
-          <Text style={styles.lightTitle}>Scanned Bill</Text>
+          <Text style={styles.lightTitle}>{amountOnly ? "New Amount" : "Scanned Bill"}</Text>
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-          {editing ? (
+          {amountOnly ? (
+            <>
+              <View style={[styles.summaryCard, sh.sm, { marginBottom: 16 }]}>
+                <Row label="Found on bill" value={name} />
+                <Row label="Due Date" value={formatLong(dueDate)} last />
+              </View>
+              <Field label="Amount (₱)" value={amount} onChange={setAmount} placeholder="0.00" keyboardType="numeric" />
+            </>
+          ) : editing ? (
             <>
               <Field label="Bill Name" value={name} onChange={setName} placeholder="e.g. Meralco" />
               <View style={{ marginBottom: 16 }}>
@@ -146,8 +167,8 @@ export default function ScanBillScreen({ navigation }: Props) {
           {formError ? <Text style={styles.error}>{formError}</Text> : null}
 
           <View style={{ marginTop: 16, gap: 10 }}>
-            <Btn onPress={confirm}>{editing ? "Save" : "Confirm"}</Btn>
-            {!editing ? (
+            <Btn onPress={confirm}>{editing || amountOnly ? "Save" : "Confirm"}</Btn>
+            {!editing && !amountOnly ? (
               <Btn variant="outline" onPress={() => setEditing(true)}>Edit Details</Btn>
             ) : null}
           </View>
@@ -181,7 +202,7 @@ export default function ScanBillScreen({ navigation }: Props) {
         <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <ArrowLeft size={18} color="#FFF" strokeWidth={2} />
         </Pressable>
-        <Text style={styles.headerTitle}>Scan Bill</Text>
+        <Text style={styles.headerTitle}>{amountOnly ? "Scan New Bill" : "Scan Bill"}</Text>
         <Pressable onPress={() => navigation.goBack()} style={{ marginLeft: "auto" }}>
           <Text style={styles.cancel}>Cancel</Text>
         </Pressable>

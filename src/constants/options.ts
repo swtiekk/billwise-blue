@@ -22,6 +22,13 @@ export const INCOME_BANDS: IncomeBand[] = [
 
 export const bandFor = (label: string) => INCOME_BANDS.find((b) => b.label === label);
 
+/** "5000.00-10000.00" (as saved by the backend) -> the matching band, if there is one. */
+export function bandForRange(range: string | null | undefined): IncomeBand | undefined {
+  const [lo, hi] = (range ?? "").replace(/[,\s]/g, "").split("-").map(Number);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return undefined;
+  return INCOME_BANDS.find((b) => b.min === lo && b.max === hi);
+}
+
 // Names line up with the keywords in classify_bill() on the backend
 // (electric / water / rent / loan / internet / subscription / groceries / shopping / entertainment).
 export const BILL_CATEGORIES = [

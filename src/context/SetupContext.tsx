@@ -3,6 +3,7 @@ import type { BillInput } from "../navigation/billBus";
 
 export interface DraftEarner {
   id: string;
+  serverId?: number; // set when the earner already exists in the database (edit mode)
   firstName: string;
   lastName: string;
   frequency: string; // Weekly | Bi-monthly | Monthly
@@ -12,6 +13,7 @@ export interface DraftEarner {
 
 export interface DraftBill {
   id: string;
+  allocationId?: number; // set when the bill already exists in the database (edit mode)
   name: string;
   category: string;
   dueDay: number;
@@ -54,6 +56,8 @@ interface SetupValue {
   addBill: (b: BillInput) => void;
   updateBill: (id: string, p: Partial<DraftBill>) => void;
   removeBill: (id: string) => void;
+  /** Replace the whole draft, e.g. with the saved setup when an Edit screen opens. */
+  replace: (d: SetupDraft) => void;
   reset: () => void;
 }
 
@@ -112,11 +116,12 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
     setDraft((d) => ({ ...d, bills: d.bills.filter((b) => b.id !== id) }));
   }, []);
 
+  const replace = useCallback((d: SetupDraft) => setDraft(d), []);
   const reset = useCallback(() => setDraft(EMPTY), []);
 
   const value = useMemo(
-    () => ({ draft, patch, addEarner, updateEarner, removeEarner, addBill, updateBill, removeBill, reset }),
-    [draft, patch, addEarner, updateEarner, removeEarner, addBill, updateBill, removeBill, reset]
+    () => ({ draft, patch, addEarner, updateEarner, removeEarner, addBill, updateBill, removeBill, replace, reset }),
+    [draft, patch, addEarner, updateEarner, removeEarner, addBill, updateBill, removeBill, replace, reset]
   );
 
   return <SetupContext.Provider value={value}>{children}</SetupContext.Provider>;
@@ -138,4 +143,3 @@ export function combinedIncome(earners: DraftEarner[], bandFor: (label: string) 
     { min: 0, max: 0 }
   );
 }
-    

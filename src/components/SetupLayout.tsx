@@ -8,12 +8,15 @@ import { FocusedStatusBar } from "./FocusedStatusBar";
 const TOTAL_STEPS = 4;
 
 /**
- * Shared frame for Setup 1-4 (and the Edit screens later):
- * gradient header with "Step X of 4" + progress bar, white rounded form sheet
- * (same shape as the Signup screen), Back / Next buttons at the bottom.
+ * Shared frame for Setup 1-4 and the Edit screens:
+ * gradient header, white rounded form sheet (same shape as the Signup screen),
+ * Back / Next buttons at the bottom.
+ * Pass `step` for the first-time setup ("Step X of 4" + progress bar); omit it for Edit screens,
+ * which show `kicker` (default "EDIT") instead.
  */
 export function SetupLayout({
   step,
+  kicker = "EDIT",
   title,
   subtitle,
   onBack,
@@ -22,7 +25,8 @@ export function SetupLayout({
   error,
   children,
 }: {
-  step: number;
+  step?: number;
+  kicker?: string;
   title: string;
   subtitle: string;
   onBack?: () => void;
@@ -38,10 +42,16 @@ export function SetupLayout({
         <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
           <LinearGradient colors={HERO_GRADIENT} style={styles.hero}>
             <View style={styles.circle} />
-            <Text style={styles.stepLabel}>STEP {step} OF {TOTAL_STEPS}</Text>
-            <View style={styles.track}>
-              <View style={[styles.fill, { width: `${(step / TOTAL_STEPS) * 100}%` }]} />
-            </View>
+            {step != null ? (
+              <>
+                <Text style={styles.stepLabel}>STEP {step} OF {TOTAL_STEPS}</Text>
+                <View style={styles.track}>
+                  <View style={[styles.fill, { width: `${(step / TOTAL_STEPS) * 100}%` }]} />
+                </View>
+              </>
+            ) : (
+              <Text style={[styles.stepLabel, { marginBottom: 20 }]}>{kicker}</Text>
+            )}
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
           </LinearGradient>
