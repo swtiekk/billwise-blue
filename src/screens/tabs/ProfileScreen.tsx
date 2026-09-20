@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, Alert, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -16,6 +16,7 @@ import { useSession } from "../../context/SessionContext";
 import { useSetup } from "../../context/SetupContext";
 import { useRisk } from "../../hooks/useRisk";
 import { useTabNav } from "../../navigation/useTabNav";
+import { sendTestReminder } from "../../notifications/reminders";
 import { monthYear, toISO } from "../../utils/dates";
 import type { RootStackParamList } from "../../navigation/routes";
 
@@ -57,6 +58,18 @@ export default function ProfileScreen({ navigation }: Props) {
     reset();
     setUser(null);
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+  };
+
+  // Development only: fires a sample reminder in 5 seconds so you can see how it looks.
+  const onTestReminder = async () => {
+    const result = await sendTestReminder().catch(() => "denied" as const);
+    if (result === "sent") {
+      Alert.alert("Test reminder sent", "It will appear in about 5 seconds. Try leaving the app, then tap it.");
+    } else if (result === "unsupported") {
+      Alert.alert("Not available in Expo Go", "Reminders can't run inside Expo Go. They work in a development build of the app.");
+    } else {
+      Alert.alert("Notifications are off", "Allow notifications for this app in your phone settings.");
+    }
   };
 
   const summary = [
@@ -126,6 +139,11 @@ export default function ProfileScreen({ navigation }: Props) {
         </View>
 
         <Text style={styles.footer}>BillWise v1.0.0 · Made for Filipino Families</Text>
+        {__DEV__ ? (
+          <Pressable onPress={onTestReminder}>
+            <Text style={styles.devLink}>Send test reminder (dev only)</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
 
       <TabBar active="profile" onChange={goTab} />
@@ -153,4 +171,5 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 11, color: C.muted, marginTop: 1 },
   rowDivider: { height: 1, backgroundColor: "#F8FAFC", marginLeft: 64 },
   footer: { textAlign: "center", fontSize: 11, color: "#CBD5E1", paddingBottom: 8 },
+  devLink: { textAlign: "center", fontSize: 11, color: C.primary, fontWeight: "600", paddingBottom: 8 },
 });

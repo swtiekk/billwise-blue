@@ -1,6 +1,7 @@
 import { api, ApiError } from "./client";
 import { saveTokens, clearTokens, getRefreshToken, getAccessToken } from "./tokenStorage";
 import type { AuthResponse, Household } from "./types";
+import { clearReminders } from "../notifications/reminders";
 
 export interface SessionUser {
   firstName: string;
@@ -67,6 +68,7 @@ export async function logout(): Promise<void> {
     // ignore: the user is logging out either way
   }
   await clearTokens();
+  await clearReminders(); // no reminders for a logged-out account
 }
 
 export type StartRoute = "Login" | "Home" | "SetupHousehold";

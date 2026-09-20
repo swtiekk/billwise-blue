@@ -6,6 +6,7 @@ import { errorMessage } from "../api/client";
 export function useBills() {
   const [bills, setBills] = useState<BudgetBill[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -13,6 +14,7 @@ export function useBills() {
     try {
       setBills(await fetchBills());
       setError(null);
+      setLoaded(true);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -20,5 +22,5 @@ export function useBills() {
     }
   }, []);
 
-  return { bills, loading, error, refresh };
+  return { bills, loading, loaded, error, refresh };
 }

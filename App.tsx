@@ -15,6 +15,11 @@ import { SessionProvider } from "./src/context/SessionContext";
 import { SetupProvider } from "./src/context/SetupContext";
 import { navigationRef } from "./src/navigation/navigationRef";
 import RootNavigator from "./src/navigation/RootNavigator";
+import { configureNotifications } from "./src/notifications/reminders";
+import { NotificationHandler } from "./src/notifications/NotificationHandler";
+
+// Show bill reminders even while the app is open.
+configureNotifications();
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -34,6 +39,7 @@ export default function App() {
           <SetupProvider>
             <NavigationContainer ref={navigationRef}>
               <RootNavigator />
+              <NotificationHandler />
             </NavigationContainer>
           </SetupProvider>
         </SessionProvider>

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import { navigationRef } from "../navigation/navigationRef";
 import { setSessionExpiredHandler } from "../api/client";
 import type { SessionUser } from "../api/auth";
+import { clearReminders } from "../notifications/reminders";
 
 interface SessionValue {
   user: SessionUser | null;
@@ -17,6 +18,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSessionExpiredHandler(() => {
       setUser(null);
+      clearReminders();
       if (navigationRef.isReady()) {
         navigationRef.reset({ index: 0, routes: [{ name: "Login" }] });
       }

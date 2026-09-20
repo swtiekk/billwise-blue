@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,6 +11,7 @@ import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { useBills } from "../../hooks/useBills";
 import { useRisk, riskDisplay } from "../../hooks/useRisk";
 import { useSession } from "../../context/SessionContext";
+import { scheduleBillReminders } from "../../notifications/reminders";
 import { useTabNav } from "../../navigation/useTabNav";
 import { formatShort } from "../../utils/dates";
 import type { RootStackParamList } from "../../navigation/routes";
@@ -20,7 +21,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 export default function HomeScreen({ navigation }: Props) {
   const { user } = useSession();
   const goTab = useTabNav();
-  const { bills, loading, error, refresh: refreshBills } = useBills();
+  const { bills, loading, loaded, error, refresh: refreshBills } = useBills();
   const { risk, error: riskError, refresh: refreshRisk } = useRisk();
 
   // Reload every time Home comes into focus (after setup, after returning from another tab).
@@ -30,6 +31,11 @@ export default function HomeScreen({ navigation }: Props) {
       refreshRisk();
     }, [refreshBills, refreshRisk])
   );
+
+  // Keep the phone's due-date reminders in step with the bills (3 days, 1 day, and the day itself).
+  useEffect(() => {
+    if (loaded) scheduleBillReminders(bills).catch(() => {});
+  }, [bills, loaded]);
 
   const refreshAll = useCallback(() => {
     refreshBills();
