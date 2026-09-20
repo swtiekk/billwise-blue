@@ -82,7 +82,7 @@ export default function TipsScreen({ navigation }: Props) {
         <Text style={styles.heroSub}>Based on your bills, income and daily expenses</Text>
 
         <View style={styles.statusCard}>
-          <Text style={styles.statusLabel}>FINANCIAL SUSTAINABILITY STATUS</Text>
+          <Text style={styles.statusLabel}>Financial sustainability</Text>
           <Text style={[styles.statusValue, { color: rd.color }]}>{rd.label}</Text>
           {caption ? <Text style={styles.statusCaption}>{caption}</Text> : null}
           <View style={styles.track}>
@@ -192,8 +192,8 @@ const styles = StyleSheet.create({
   heroTitle: { color: "#FFF", fontSize: 20, fontWeight: "700" },
   heroSub: { color: "#BFDBFE", fontSize: 13 },
   statusCard: { backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 20, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", marginTop: 16 },
-  statusLabel: { color: "#BFDBFE", fontSize: 10, fontWeight: "600", letterSpacing: 0.5 },
-  statusValue: { fontSize: 30, fontWeight: "800", marginTop: 2 },
+  statusLabel: { color: "#BFDBFE", fontSize: 12, fontWeight: "500" },
+  statusValue: { fontSize: 38, fontWeight: "800", marginTop: 2 },
   statusCaption: { color: "#BFDBFE", fontSize: 11, marginTop: 2, marginBottom: 10 },
   track: { height: 8, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 4, overflow: "hidden", marginTop: 6 },
   fill: { height: "100%", borderRadius: 4 },

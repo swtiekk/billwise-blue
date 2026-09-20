@@ -73,10 +73,10 @@ export default function ProfileScreen({ navigation }: Props) {
   };
 
   const summary = [
-    { label: "TOTAL MEMBERS", value: household ? String(household.total_members) : "—" },
-    { label: "EARNERS", value: household ? String(household.no_of_earners) : "—" },
-    { label: "HOUSING", value: household?.housing_type || "—" },
-    { label: "CURRENT PERIOD", value: monthYear(risk?.next_payday ?? toISO(new Date())) },
+    { label: "Total members", value: household ? String(household.total_members) : "—" },
+    { label: "Earners", value: household ? String(household.no_of_earners) : "—" },
+    { label: "Housing", value: household?.housing_type || "—" },
+    { label: "Current period", value: monthYear(risk?.next_payday ?? toISO(new Date())) },
   ];
 
   return (
@@ -161,8 +161,8 @@ const styles = StyleSheet.create({
   summaryTitle: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 12 },
   summaryGrid: { flexDirection: "row", flexWrap: "wrap", rowGap: 14 },
   summaryCell: { width: "50%", paddingRight: 8 },
-  summaryLabel: { fontSize: 10, fontWeight: "600", color: C.muted, letterSpacing: 0.5 },
-  summaryValue: { fontSize: 15, fontWeight: "700", color: C.text, marginTop: 2 },
+  summaryLabel: { fontSize: 12, fontWeight: "500", color: C.muted },
+  summaryValue: { fontSize: 19, fontWeight: "800", color: C.text, marginTop: 2 },
   groupLabel: { fontSize: 11, fontWeight: "600", color: C.muted, letterSpacing: 0.6, marginBottom: 8, marginLeft: 2 },
   groupCard: { backgroundColor: C.surface, borderRadius: 16, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },

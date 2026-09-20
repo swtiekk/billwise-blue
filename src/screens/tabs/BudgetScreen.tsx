@@ -106,7 +106,7 @@ export default function BudgetScreen(_props: Props) {
                 onPress={() => setHalf(on ? null : h.key)}
                 style={[styles.splitCard, sh.sm, on && styles.splitCardOn]}
               >
-                <Text style={styles.splitLabel}>{h.label.toUpperCase()}</Text>
+                <Text style={styles.splitLabel}>{h.label}</Text>
                 <Text style={styles.splitValue}>{t.count === 0 ? "—" : rangeText(t.min, t.max)}</Text>
                 <Text style={styles.splitSub}>{t.count} bill{t.count === 1 ? "" : "s"}</Text>
               </Pressable>
@@ -186,8 +186,8 @@ const styles = StyleSheet.create({
   filterChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 99 },
   splitCard: { flex: 1, backgroundColor: C.surface, borderRadius: 16, padding: 14, borderWidth: 1.5, borderColor: "transparent" },
   splitCardOn: { borderColor: C.primary, backgroundColor: C.primaryLt },
-  splitLabel: { fontSize: 10, fontWeight: "600", color: C.muted, letterSpacing: 0.5 },
-  splitValue: { fontSize: 14, fontWeight: "700", color: C.text, marginTop: 4 },
+  splitLabel: { fontSize: 12, fontWeight: "500", color: C.muted },
+  splitValue: { fontSize: 17, fontWeight: "800", color: C.text, marginTop: 4 },
   splitSub: { fontSize: 11, color: C.muted, marginTop: 2 },
   deferCard: { backgroundColor: C.amberBg, borderColor: "#FDE68A", borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
   deferTitle: { fontSize: 13, fontWeight: "700", color: C.amber },
@@ -199,6 +199,6 @@ const styles = StyleSheet.create({
   deferFreed: { fontSize: 12, fontWeight: "700", color: C.amber },
   bottomBar: { backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border, paddingHorizontal: 20, paddingVertical: 12, flexDirection: "row", justifyContent: "space-between" },
   barLabel: { fontSize: 11, color: C.muted, fontWeight: "500" },
-  barValue: { fontSize: 16, fontWeight: "700", color: C.text, marginTop: 1 },
+  barValue: { fontSize: 22, fontWeight: "800", color: C.text, marginTop: 1 },
   barSub: { fontSize: 10, color: C.muted },
 });

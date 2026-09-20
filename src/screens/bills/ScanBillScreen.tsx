@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   summaryCard: { backgroundColor: C.surface, borderRadius: 16, paddingHorizontal: 16 },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16, paddingVertical: 14 },
   rowDivider: { borderBottomWidth: 1, borderBottomColor: C.border },
-  rowLabel: { fontSize: 11, fontWeight: "600", color: C.muted, letterSpacing: 0.5, textTransform: "uppercase" },
+  rowLabel: { fontSize: 12, fontWeight: "500", color: C.muted },
   rowValue: { flex: 1, textAlign: "right", fontSize: 14, fontWeight: "600", color: C.text },
   toggleCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   toggleLabel: { fontSize: 13, fontWeight: "600", color: C.sub },

@@ -2,17 +2,20 @@ import React, { useCallback, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Sun, Bell, CalendarClock, Wallet, Star } from "lucide-react-native";
+import { Sun, Bell, Star } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { C, sh, HERO_GRADIENT, fmt } from "../../theme";
+import { C, HERO_GRADIENT, fmt } from "../../theme";
+import { GOLD } from "../../brand";
 import { TabBar } from "../../components/TabBar";
 import { BillCard } from "../../components/BillCard";
+import { PaydayRing } from "../../components/PaydayRing";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { useBills } from "../../hooks/useBills";
 import { useRisk, riskDisplay } from "../../hooks/useRisk";
+import { useCountUp } from "../../hooks/useCountUp";
 import { useSession } from "../../context/SessionContext";
-import { scheduleBillReminders } from "../../notifications/reminders";
 import { useTabNav } from "../../navigation/useTabNav";
+import { scheduleBillReminders } from "../../notifications/reminders";
 import { formatShort } from "../../utils/dates";
 import type { RootStackParamList } from "../../navigation/routes";
 
@@ -46,13 +49,14 @@ export default function HomeScreen({ navigation }: Props) {
   const priorityBills = bills.filter((b) => b.priority === "High");
   const alertCount = bills.filter((b) => b.status === "overdue" || b.status === "due-soon").length;
 
-  const remainingMin = risk ? Number(risk.remaining_budget_min) : null;
-  const remainingMax = risk ? Number(risk.remaining_budget_max) : null;
+  const remaining = risk ? Number(risk.remaining_budget_min) : null;
   const income = risk ? Number(risk.combined_income) : 0;
-  const remainingPct = remainingMin != null && income > 0 ? Math.max(0, Math.min(1, remainingMin / income)) : 0;
+  const remainingShare = remaining != null && income > 0 ? Math.max(0, Math.min(1, remaining / income)) : 0;
+  const days = risk ? risk.days_until_next_payday : null;
 
-  const days = risk?.days_until_next_payday;
-  const daysText = days == null ? "—" : days === 1 ? "1 day" : `${days} days`;
+  // numbers count up when they arrive
+  const remainingShown = Math.round(useCountUp(remaining));
+  const daysShown = Math.round(useCountUp(days, 700));
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -63,7 +67,7 @@ export default function HomeScreen({ navigation }: Props) {
             <Text style={styles.greeting}>Hello,</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
               <Text style={styles.name}>{user?.firstName ?? "there"}!</Text>
-              <Sun size={18} color="#FDE68A" strokeWidth={1.75} />
+              <Sun size={18} color={GOLD.light} strokeWidth={1.75} />
             </View>
           </View>
           <Pressable onPress={() => navigation.navigate("Notifications")} style={({ pressed }) => [styles.bellWrap, pressed && { opacity: 0.7 }]}>
@@ -76,15 +80,30 @@ export default function HomeScreen({ navigation }: Props) {
           </Pressable>
         </View>
 
-        <View style={styles.riskCard}>
-          <Text style={styles.riskLabel}>FINANCIAL RISK STATUS</Text>
-          <Text style={[styles.riskScore, { color: rd.color }]}>{rd.label}</Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${rd.pct}%`, backgroundColor: rd.barColor }]} />
+        <View style={styles.heroCard}>
+          <View style={styles.heroRow}>
+            <PaydayRing size={136} stroke={12} progress={remainingShare} color={GOLD.light}>
+              <Text
+                style={[styles.ringAmount, remaining != null && remaining < 0 && { color: "#FCA5A5" }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {remaining == null ? "—" : fmt(remainingShown)}
+              </Text>
+              <Text style={styles.ringLabel}>left after bills</Text>
+            </PaydayRing>
+
+            <View style={styles.heroRight}>
+              <Text style={styles.days}>{days == null ? "—" : daysShown}</Text>
+              <Text style={styles.daysLabel}>{days === 1 ? "day" : "days"} to payday</Text>
+              {risk?.next_payday ? <Text style={styles.daysDate}>{formatShort(risk.next_payday)}</Text> : null}
+            </View>
           </View>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
-            <Text style={styles.progressLabel}>Stable</Text>
-            <Text style={styles.progressLabel}>Critical</Text>
+
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: rd.barColor }]} />
+            <Text style={[styles.statusText, { color: rd.color }]}>{rd.label}</Text>
+            <Text style={styles.statusCaption}>financial risk</Text>
           </View>
         </View>
       </LinearGradient>
@@ -95,48 +114,13 @@ export default function HomeScreen({ navigation }: Props) {
       >
         {error || riskError ? <Text style={styles.errorText}>{error ?? riskError}</Text> : null}
 
-        <View style={[styles.infoCard, sh.sm]}>
-          <View style={styles.infoIcon}>
-            <CalendarClock size={20} color={C.primary} strokeWidth={1.75} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.infoLabel}>PAYDAY COUNTDOWN</Text>
-            <Text style={styles.infoValue}>{daysText}</Text>
-            <Text style={styles.infoSub}>
-              until next payday{risk?.next_payday ? ` · ${formatShort(risk.next_payday)}` : ""}
-            </Text>
-          </View>
-        </View>
-
-        <View style={[styles.budgetCard, sh.sm]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <View style={styles.infoIcon}>
-              <Wallet size={20} color={C.primary} strokeWidth={1.75} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.infoLabel}>ESTIMATED REMAINING BUDGET</Text>
-              <Text style={[styles.infoValue, remainingMin != null && remainingMin < 0 && { color: C.red }]}>
-                {remainingMin == null ? "—" : fmt(remainingMin)}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.budgetTrack}>
-            <View style={[styles.budgetFill, { width: `${remainingPct * 100}%`, backgroundColor: rd.barColor }]} />
-          </View>
-          <Text style={styles.infoSub}>
-            {remainingMin == null || remainingMax == null
-              ? "Calculating…"
-              : `Between ${fmt(remainingMin)} and ${fmt(remainingMax)} after bills`}
-          </Text>
-        </View>
-
         <View style={styles.sectionHeader}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Star size={16} color={C.amber} strokeWidth={2} />
-            <Text style={styles.sectionTitle}>Priority Bills This Period</Text>
+            <Star size={16} color={GOLD.gold} strokeWidth={2} />
+            <Text style={styles.sectionTitle}>Priority bills this period</Text>
           </View>
           <Pressable onPress={() => goTab("budget")}>
-            <Text style={styles.seeAll}>View All Bills</Text>
+            <Text style={styles.seeAll}>View all bills</Text>
           </Pressable>
         </View>
 
@@ -160,28 +144,26 @@ export default function HomeScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   hero: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 24, position: "relative", overflow: "hidden" },
-  heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
+  heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 },
   greeting: { color: "#BFDBFE", fontSize: 12, fontWeight: "500" },
   name: { color: "#FFF", fontSize: 20, fontWeight: "700" },
   bellWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   bellBadge: { position: "absolute", top: -4, right: -4, minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, backgroundColor: "#E11D48", alignItems: "center", justifyContent: "center" },
   bellBadgeText: { color: "#FFF", fontSize: 9, fontWeight: "700" },
-  riskCard: { backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 20, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
-  riskLabel: { color: "#BFDBFE", fontSize: 10, fontWeight: "600", letterSpacing: 0.5 },
-  riskScore: { fontSize: 28, fontWeight: "800", marginTop: 2, marginBottom: 12 },
-  progressTrack: { height: 8, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 4, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 4 },
-  progressLabel: { color: "#BFDBFE", fontSize: 10 },
+  heroCard: { backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 24, padding: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
+  heroRow: { flexDirection: "row", alignItems: "center", gap: 18 },
+  ringAmount: { color: "#FFF", fontSize: 22, fontWeight: "800", maxWidth: 96, textAlign: "center" },
+  ringLabel: { color: "#BFDBFE", fontSize: 11, marginTop: 1 },
+  heroRight: { flex: 1 },
+  days: { color: "#FFF", fontSize: 56, fontWeight: "800", lineHeight: 60 },
+  daysLabel: { color: "#DBEAFE", fontSize: 14, fontWeight: "600", marginTop: -2 },
+  daysDate: { color: "#93C5FD", fontSize: 12, marginTop: 4 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.18)" },
+  statusDot: { width: 10, height: 10, borderRadius: 5 },
+  statusText: { fontSize: 16, fontWeight: "800" },
+  statusCaption: { color: "#BFDBFE", fontSize: 12 },
   errorText: { color: C.red, fontSize: 12 },
-  infoCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", gap: 12 },
-  budgetCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, gap: 12 },
-  infoIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
-  infoLabel: { fontSize: 10, fontWeight: "600", color: C.muted, letterSpacing: 0.5 },
-  infoValue: { fontSize: 22, fontWeight: "700", color: C.text, marginTop: 2 },
-  infoSub: { fontSize: 11, color: C.muted, marginTop: 1 },
-  budgetTrack: { height: 8, backgroundColor: "#E2E8F0", borderRadius: 4, overflow: "hidden" },
-  budgetFill: { height: "100%", borderRadius: 4 },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 6 },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: C.text },
   seeAll: { fontSize: 12, color: C.primary, fontWeight: "600" },
   emptyCard: { backgroundColor: C.surface, borderRadius: 16, paddingVertical: 24, alignItems: "center" },

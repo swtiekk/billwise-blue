@@ -117,7 +117,7 @@ export default function SetupIncomeScreen({ navigation, route }: Props) {
       ) : null}
 
       <View style={styles.combinedCard}>
-        <Text style={styles.combinedLabel}>COMBINED INCOME</Text>
+        <Text style={styles.combinedLabel}>Combined income</Text>
         <Text style={styles.combinedValue}>
           {combined.max === 0 ? "—" : `${fmt(combined.min)} – ${fmt(combined.max)}`}
         </Text>
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 99 },
   earnerTitle: { fontSize: 16, fontWeight: "700", color: C.text, marginBottom: 14 },
   combinedCard: { backgroundColor: C.primaryLt, borderRadius: 16, padding: 16, marginTop: 4, marginBottom: 8 },
-  combinedLabel: { fontSize: 11, fontWeight: "600", color: C.sub, letterSpacing: 0.5 },
-  combinedValue: { fontSize: 20, fontWeight: "700", color: C.primaryDk, marginTop: 4 },
+  combinedLabel: { fontSize: 12, fontWeight: "500", color: C.sub },
+  combinedValue: { fontSize: 26, fontWeight: "800", color: C.primaryDk, marginTop: 4 },
   combinedSub: { fontSize: 11, color: C.muted, marginTop: 2 },
 });

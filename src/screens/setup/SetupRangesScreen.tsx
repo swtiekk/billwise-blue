@@ -86,7 +86,7 @@ export default function SetupRangesScreen({ navigation, route }: Props) {
       </View>
 
       <View style={styles.combinedCard}>
-        <Text style={styles.combinedLabel}>COMBINED INCOME</Text>
+        <Text style={styles.combinedLabel}>Combined income</Text>
         <Text style={styles.combinedValue}>
           {combined.max === 0 ? "—" : `${fmt(combined.min)} – ${fmt(combined.max)}`}
         </Text>
@@ -131,8 +131,8 @@ const styles = StyleSheet.create({
   periodChip: { backgroundColor: C.primaryLt, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 5 },
   periodText: { fontSize: 12, fontWeight: "600", color: C.primary },
   combinedCard: { backgroundColor: C.primaryLt, borderRadius: 16, padding: 16, marginBottom: 20 },
-  combinedLabel: { fontSize: 11, fontWeight: "600", color: C.sub, letterSpacing: 0.5 },
-  combinedValue: { fontSize: 20, fontWeight: "700", color: C.primaryDk, marginTop: 4 },
+  combinedLabel: { fontSize: 12, fontWeight: "500", color: C.sub },
+  combinedValue: { fontSize: 26, fontWeight: "800", color: C.primaryDk, marginTop: 4 },
   billName: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 8 },
   note: { flexDirection: "row", gap: 10, backgroundColor: C.primaryLt, borderRadius: 12, padding: 12, marginTop: 4, marginBottom: 8 },
   noteText: { flex: 1, fontSize: 12, color: C.sub, lineHeight: 17 },
