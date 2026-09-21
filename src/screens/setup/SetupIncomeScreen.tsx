@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { View, Pressable, ScrollView, StyleSheet } from "react-native";
+import { Text } from "../../ui/Text";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, fmt } from "../../theme";
 import { Sel } from "../../components/Atoms";

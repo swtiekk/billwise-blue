@@ -1,5 +1,6 @@
 import React from "react";
-import { Modal, View, Text, Pressable, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { Modal, View, Pressable, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { Text } from "../ui/Text";
 import { C } from "../theme";
 
 /** Bottom sheet, styled like the modal inside <Sel> (same backdrop and rounded top). */

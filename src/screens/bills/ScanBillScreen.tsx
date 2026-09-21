@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Pressable, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
+import { Text } from "../../ui/Text";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { ArrowLeft, Images } from "lucide-react-native";

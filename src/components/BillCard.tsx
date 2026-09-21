@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Pressable, StyleSheet } from "react-native";
+import { Text } from "../ui/Text";
 import { C, sh } from "../theme";
 import { STATUS_CONFIG, BillStatus } from "../data";
 import { CategoryIcon } from "./CategoryIcon";

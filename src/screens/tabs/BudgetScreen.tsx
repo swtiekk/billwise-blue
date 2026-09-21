@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
+import { View, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
+import { Text } from "../../ui/Text";
 import { useFocusEffect } from "@react-navigation/native";
 import { AlertTriangle, FileText } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";

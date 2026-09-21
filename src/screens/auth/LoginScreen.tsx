@@ -1,11 +1,11 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, ScrollView, Alert, StyleSheet } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { View, Pressable, ScrollView, Alert, StyleSheet } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { Wallet, CircleDollarSign } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { C, sh, HERO_GRADIENT, fmt } from "../../theme";
+import { C, sh } from "../../theme";
+import { Text } from "../../ui/Text";
 import { Field, Btn } from "../../components/Atoms";
+import { Piso } from "../../components/Piso";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { login } from "../../api/auth";
 import { errorMessage } from "../../api/client";
@@ -55,61 +55,30 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-      <FocusedStatusBar style="light" />
-      <LinearGradient colors={HERO_GRADIENT} style={styles.hero}>
-        <View style={[styles.circleBig]} />
-        <View style={[styles.circleSmall]} />
+    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <FocusedStatusBar style="dark" />
 
-        <View style={styles.illustrationWrap}>
-          <View style={styles.cardBack1} />
-          <View style={styles.cardBack2} />
-          <View style={[styles.card, sh.lg]}>
-            <View style={styles.cardTop}>
-              <View style={styles.cardIconWrap}>
-                <Wallet size={16} color={C.primary} strokeWidth={2} />
-              </View>
-              <Text style={styles.cardBrand}>BillWise</Text>
-            </View>
-            <Text style={styles.cardLabel}>Total Due</Text>
-            <Text style={styles.cardValue}>{fmt(16528)}</Text>
-            <View style={styles.cardBars}>
-              <View style={[styles.cardBar, { backgroundColor: "#FECDD3", flex: 1 }]} />
-              <View style={[styles.cardBar, { backgroundColor: "#FDE68A", flex: 1 }]} />
-              <View style={[styles.cardBar, { backgroundColor: "#F1F5F9", width: 32, flex: 0 }]} />
-            </View>
-          </View>
-          <View style={styles.coinBadge}>
-            <CircleDollarSign size={22} color="#FFF" strokeWidth={2} />
-          </View>
-        </View>
-
-        <Text style={styles.heroTitle}>Smart Bills,{"\n"}Smarter Budget</Text>
-        <Text style={styles.heroTagline}>
-          Never miss a bill again. Prioritize what matters for your family.
-        </Text>
-      </LinearGradient>
+      <View style={styles.head}>
+        <Piso size={72} mood="happy" />
+        <Text style={styles.title}>Welcome back</Text>
+        <Text style={styles.sub}>Log in to see how your bills and budget are doing.</Text>
+      </View>
 
       <View style={styles.form}>
-        <Text style={styles.welcome}>Welcome back</Text>
-        <Text style={styles.welcomeSub}>Log in to your BillWise account</Text>
+        <Field label="Email address" value={email} onChange={setEmail} placeholder="juan@email.com" keyboardType="email-address" />
+        <Field label="Password" value={pass} onChange={setPass} placeholder="Your password" secureTextEntry />
 
-        <Field label="Email Address" value={email} onChange={setEmail} placeholder="juan@email.com" keyboardType="email-address" />
-        <Field label="Password" value={pass} onChange={setPass} placeholder="••••••••" secureTextEntry />
-
-        <Pressable style={{ alignSelf: "flex-end", marginBottom: 8 }}>
+        <Pressable style={{ alignSelf: "flex-end", marginBottom: 10 }}>
           <Text style={styles.forgot}>Forgot password?</Text>
         </Pressable>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <View style={{ marginTop: 8 }}>
-          <Btn onPress={submit}>{loading ? "Logging in…" : "Log In"}</Btn>
-        </View>
+        <Btn onPress={submit}>{loading ? "Logging in…" : "Log in"}</Btn>
 
         <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or continue with</Text>
+          <Text style={styles.dividerText}>or</Text>
           <View style={styles.dividerLine} />
         </View>
 
@@ -118,46 +87,31 @@ export default function LoginScreen({ navigation }: Props) {
           style={({ pressed }) => [styles.googleBtn, sh.sm, pressed && { opacity: 0.85 }]}
         >
           <GoogleIcon />
-          <Text style={styles.googleText}>Sign in with Google</Text>
+          <Text style={styles.googleText}>Continue with Google</Text>
         </Pressable>
-
-        <Text style={styles.signupRow}>
-          Don't have an account?{" "}
-          <Text style={styles.signupLink} onPress={() => navigation.navigate("Signup")}>Sign up</Text>
-        </Text>
       </View>
+
+      <Text style={styles.signupRow}>
+        New to BillWise?{" "}
+        <Text style={styles.signupLink} onPress={() => navigation.navigate("Signup")}>Create an account</Text>
+      </Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: { paddingHorizontal: 24, paddingTop: 64, paddingBottom: 80, position: "relative", overflow: "hidden" },
-  circleBig: { position: "absolute", top: -64, right: -64, width: 192, height: 192, borderRadius: 96, backgroundColor: "rgba(255,255,255,0.1)" },
-  circleSmall: { position: "absolute", bottom: -32, left: -32, width: 128, height: 128, borderRadius: 64, backgroundColor: "rgba(255,255,255,0.1)" },
-  illustrationWrap: { alignItems: "center", marginBottom: 24, position: "relative", height: 150 },
-  cardBack1: { position: "absolute", top: 16, width: 208, height: 128, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.2)", transform: [{ rotate: "6deg" }] },
-  cardBack2: { position: "absolute", top: 8, width: 208, height: 128, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.3)", transform: [{ rotate: "3deg" }] },
-  card: { width: 208, height: 128, backgroundColor: "#FFF", borderRadius: 16, padding: 16 },
-  cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  cardIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
-  cardBrand: { fontSize: 11, color: C.muted, fontWeight: "600" },
-  cardLabel: { fontSize: 11, color: C.muted, marginBottom: 2 },
-  cardValue: { fontSize: 20, fontWeight: "700", color: C.text },
-  cardBars: { flexDirection: "row", gap: 4, marginTop: 8 },
-  cardBar: { height: 6, borderRadius: 3 },
-  coinBadge: { position: "absolute", bottom: -6, right: 12, width: 48, height: 48, borderRadius: 24, backgroundColor: "#F59E0B", alignItems: "center", justifyContent: "center", ...sh.md },
-  heroTitle: { color: "#FFF", fontSize: 28, fontWeight: "800", textAlign: "center", lineHeight: 34 },
-  heroTagline: { color: "#BFDBFE", fontSize: 13, textAlign: "center", marginTop: 12, lineHeight: 19, paddingHorizontal: 8 },
-  form: { flex: 1, backgroundColor: "#FFF", borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 32, marginTop: -20 },
-  welcome: { fontSize: 20, fontWeight: "700", color: C.text, marginBottom: 2 },
-  welcomeSub: { fontSize: 13, color: C.muted, marginBottom: 20 },
-  forgot: { fontSize: 12, color: C.primary, fontWeight: "600" },
-  error: { color: C.red, fontSize: 12, marginTop: 4 },
-  dividerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 18 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: C.border },
-  dividerText: { fontSize: 12, color: C.muted },
-  googleBtn: { borderWidth: 1, borderColor: C.border, borderRadius: 16, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFF" },
-  googleText: { fontSize: 14, fontWeight: "500", color: C.sub },
-  signupRow: { textAlign: "center", fontSize: 13, color: C.muted, marginTop: 20 },
+  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 72, paddingBottom: 32 },
+  head: { marginBottom: 28 },
+  title: { fontSize: 28, fontWeight: "800", color: C.text, marginTop: 14 },
+  sub: { fontSize: 14, color: C.sub, marginTop: 6, lineHeight: 21 },
+  form: { flex: 1 },
+  forgot: { fontSize: 13, color: C.primary, fontWeight: "600" },
+  error: { color: C.red, fontSize: 13, marginBottom: 10 },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 20 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#D3E1FA" },
+  dividerText: { fontSize: 13, color: C.muted },
+  googleBtn: { height: 54, borderRadius: 18, borderWidth: 1.5, borderColor: "#D3E1FA", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#FFF" },
+  googleText: { fontSize: 15, fontWeight: "600", color: C.text },
+  signupRow: { textAlign: "center", fontSize: 14, color: C.sub, marginTop: 24 },
   signupLink: { color: C.primary, fontWeight: "700" },
 });

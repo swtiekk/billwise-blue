@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { Text } from "../ui/Text";
 import { C } from "../theme";
 import { Btn } from "./Atoms";
 import { FocusedStatusBar } from "./FocusedStatusBar";

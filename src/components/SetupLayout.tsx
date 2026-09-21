@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, ScrollView, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { View, ScrollView, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { Text } from "../ui/Text";
 import { LinearGradient } from "expo-linear-gradient";
 import { C, HERO_GRADIENT } from "../theme";
 import { Btn } from "./Atoms";

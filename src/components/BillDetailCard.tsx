@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
+import { Text } from "../ui/Text";
 import { CalendarClock } from "lucide-react-native";
 import { C, sh } from "../theme";
 import { STATUS_CONFIG } from "../data";

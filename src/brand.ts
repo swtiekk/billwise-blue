@@ -1,11 +1,7 @@
-/**
- * Gold accent: used ONLY for money moments (the payday ring, the peso sign, loaders).
- * Risk status keeps its own green / amber / red so gold is never mistaken for a warning.
- * Kept in its own file so your theme.ts stays untouched.
- */
+/** Piso gold. Used only for money moments (the peso sign, loaders, the star beside priority bills). */
 export const GOLD = {
-  gold: "#F5B301",  // on light backgrounds (icons)
-  light: "#FFCF4A", // on the blue gradient
-  bg: "#FFF8E1",
-  dark: "#5C3D00",  // text on gold
+  gold: "#FFC533",  // on light backgrounds
+  light: "#FFD666", // on the blue background
+  bg: "#FFF0C7",
+  dark: "#4A3300",  // text on gold
 } as const;

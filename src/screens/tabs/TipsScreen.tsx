@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from "react";
-import { View, Text, ScrollView, RefreshControl, StyleSheet } from "react-native";
+import { View, ScrollView, RefreshControl, StyleSheet } from "react-native";
+import { Text } from "../../ui/Text";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { AlertTriangle, CalendarClock, CheckCircle2, Info, Lightbulb, RefreshCw, Hourglass } from "lucide-react-native";

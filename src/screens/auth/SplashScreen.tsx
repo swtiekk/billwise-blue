@@ -1,10 +1,10 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, Animated, StyleSheet } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { View, Animated, StyleSheet } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { HERO_GRADIENT } from "../../theme";
-import { GOLD } from "../../brand";
+import { C } from "../../theme";
+import { Text } from "../../ui/Text";
 import { PaydayRing } from "../../components/PaydayRing";
+import { Piso } from "../../components/Piso";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { resolveStart } from "../../api/auth";
 import { useSession } from "../../context/SessionContext";
@@ -18,25 +18,25 @@ const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, 
 export default function SplashScreen({ navigation }: Props) {
   const { setUser } = useSession();
   const reduced = useReducedMotion();
-  const glyph = useRef(new Animated.Value(0)).current;
+  const piso = useRef(new Animated.Value(0)).current;
   const words = useRef(new Animated.Value(0)).current;
 
-  // One orchestrated moment: ring draws (0 to 1.2s), the peso pops, then the name fades in.
+  // One orchestrated moment: the ring draws, Piso pops in, then the name fades in.
   useEffect(() => {
     if (reduced) {
-      glyph.setValue(1);
+      piso.setValue(1);
       words.setValue(1);
       return;
     }
     Animated.sequence([
-      Animated.delay(800),
-      Animated.spring(glyph, { toValue: 1, friction: 5, tension: 90, useNativeDriver: true }),
+      Animated.delay(700),
+      Animated.spring(piso, { toValue: 1, friction: 5, tension: 90, useNativeDriver: true }),
     ]).start();
     Animated.sequence([
       Animated.delay(1200),
       Animated.timing(words, { toValue: 1, duration: 500, useNativeDriver: true }),
     ]).start();
-  }, [reduced, glyph, words]);
+  }, [reduced, piso, words]);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,36 +53,30 @@ export default function SplashScreen({ navigation }: Props) {
   }, [navigation, setUser]);
 
   return (
-    <LinearGradient colors={HERO_GRADIENT} style={styles.root}>
+    <View style={styles.root}>
       <FocusedStatusBar style="light" />
       <View style={styles.circleBig} />
       <View style={styles.circleSmall} />
 
-      <PaydayRing size={148} stroke={10} progress={1} color={GOLD.light} duration={1200}>
-        <Animated.Text
-          style={[
-            styles.peso,
-            { opacity: glyph, transform: [{ scale: glyph.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] },
-          ]}
-        >
-          ₱
-        </Animated.Text>
+      <PaydayRing size={164} stroke={8} progress={1} color="#FFFFFF" track="rgba(255,255,255,0.25)" duration={1200}>
+        <Animated.View style={{ opacity: piso, transform: [{ scale: piso.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] }}>
+          <Piso size={96} mood="happy" />
+        </Animated.View>
       </PaydayRing>
 
       <Animated.View style={[styles.words, { opacity: words }]}>
         <Text style={styles.name}>BillWise</Text>
         <Text style={styles.tagline}>{"Smart Bills.\nSmarter Budget."}</Text>
       </Animated.View>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, overflow: "hidden" },
-  circleBig: { position: "absolute", top: -64, right: -64, width: 224, height: 224, borderRadius: 112, backgroundColor: "rgba(255,255,255,0.08)" },
-  circleSmall: { position: "absolute", bottom: -40, left: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: "rgba(255,255,255,0.08)" },
-  peso: { fontSize: 60, fontWeight: "800", color: GOLD.light },
+  root: { flex: 1, backgroundColor: C.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, overflow: "hidden" },
+  circleBig: { position: "absolute", top: -70, right: -70, width: 240, height: 240, borderRadius: 120, backgroundColor: "rgba(255,255,255,0.07)" },
+  circleSmall: { position: "absolute", bottom: -50, left: -50, width: 180, height: 180, borderRadius: 90, backgroundColor: "rgba(255,255,255,0.07)" },
   words: { alignItems: "center", marginTop: 36 },
-  name: { color: "#FFF", fontSize: 36, fontWeight: "800" },
-  tagline: { color: "#BFDBFE", fontSize: 16, textAlign: "center", marginTop: 10, lineHeight: 23 },
+  name: { color: "#FFF", fontSize: 34, fontWeight: "800" },
+  tagline: { color: "#D3E4FF", fontSize: 16, textAlign: "center", marginTop: 10, lineHeight: 24 },
 });

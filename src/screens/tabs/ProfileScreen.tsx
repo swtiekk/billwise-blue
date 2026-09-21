@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, Pressable, ScrollView, Alert, StyleSheet } from "react-native";
+import { View, Pressable, ScrollView, Alert, StyleSheet } from "react-native";
+import { Text } from "../../ui/Text";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -14,6 +15,7 @@ import { getHousehold } from "../../api/edit";
 import type { Household } from "../../api/types";
 import { useSession } from "../../context/SessionContext";
 import { useSetup } from "../../context/SetupContext";
+import { useTextSize } from "../../context/TextSizeContext";
 import { useRisk } from "../../hooks/useRisk";
 import { useTabNav } from "../../navigation/useTabNav";
 import { sendTestReminder } from "../../notifications/reminders";
@@ -41,6 +43,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const { user, setUser } = useSession();
   const { reset } = useSetup();
   const goTab = useTabNav();
+  const { size: textSize, setSize: setTextSize } = useTextSize();
   const { risk, refresh: refreshRisk } = useRisk();
   const [household, setHousehold] = useState<Household | null>(null);
 
@@ -123,6 +126,19 @@ export default function ProfileScreen({ navigation }: Props) {
         </View>
 
         <View>
+          <Text style={styles.groupLabel}>TEXT SIZE</Text>
+          <View style={[styles.groupCard, sh.sm, styles.sizeCard]}>
+            {(["small", "default", "large"] as const).map((k) => (
+              <Pressable key={k} onPress={() => setTextSize(k)} style={[styles.sizeBtn, textSize === k && styles.sizeBtnOn]}>
+                <Text style={[styles.sizeText, textSize === k && { color: "#FFF" }]}>
+                  {k === "small" ? "Small" : k === "large" ? "Large" : "Default"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View>
           <Text style={styles.groupLabel}>OTHER</Text>
           <View style={[styles.groupCard, sh.sm]}>
             <NavRow Icon={Info} label="About BillWise" onPress={() => navigation.navigate("About")} />
@@ -170,6 +186,10 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 13, fontWeight: "500", color: C.sub },
   rowSub: { fontSize: 11, color: C.muted, marginTop: 1 },
   rowDivider: { height: 1, backgroundColor: "#F8FAFC", marginLeft: 64 },
+  sizeCard: { flexDirection: "row", padding: 6, gap: 6 },
+  sizeBtn: { flex: 1, paddingVertical: 11, borderRadius: 12, alignItems: "center", backgroundColor: C.primaryLt },
+  sizeBtnOn: { backgroundColor: C.primary },
+  sizeText: { fontSize: 13, fontWeight: "600", color: C.primary },
   footer: { textAlign: "center", fontSize: 11, color: "#CBD5E1", paddingBottom: 8 },
   devLink: { textAlign: "center", fontSize: 11, color: C.primary, fontWeight: "600", paddingBottom: 8 },
 });

@@ -1,15 +1,10 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
-  Modal,
-  FlatList,
-} from "react-native";
+import { View, TextInput, Pressable, StyleSheet, Modal, FlatList } from "react-native";
 import { ChevronDown, Check } from "lucide-react-native";
 import { C, sh } from "../theme";
+import { Text } from "../ui/Text";
+import { FONT, MAX_SYSTEM_FONT_MULTIPLIER, BASE_TEXT_SCALE } from "../typography";
+import { useTextScale } from "../context/TextSizeContext";
 
 // ── Field label ──────────────────────────────────────────────────
 export function FL({ children }: { children: string }) {
@@ -32,6 +27,7 @@ export function Field({
   keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
   secureTextEntry?: boolean;
 }) {
+  const scale = useTextScale() * BASE_TEXT_SCALE;
   return (
     <View style={{ marginBottom: 16 }}>
       <FL>{label}</FL>
@@ -41,8 +37,9 @@ export function Field({
         placeholder={placeholder}
         keyboardType={keyboardType}
         secureTextEntry={secureTextEntry}
-        placeholderTextColor="#CBD5E1"
-        style={styles.input}
+        placeholderTextColor="#9DB0D6"
+        maxFontSizeMultiplier={MAX_SYSTEM_FONT_MULTIPLIER}
+        style={[styles.input, { fontFamily: FONT.regular, fontSize: 15 * scale }]}
       />
     </View>
   );
@@ -65,8 +62,8 @@ export function Sel({
     <View>
       {label ? <FL>{label}</FL> : null}
       <Pressable style={styles.select} onPress={() => setOpen(true)}>
-        <Text style={{ fontSize: 13, color: C.primary, fontWeight: "500" }}>{value}</Text>
-        <ChevronDown size={14} color={C.primary} />
+        <Text style={{ fontSize: 14, color: C.primary, fontWeight: "600", flexShrink: 1 }} numberOfLines={1}>{value}</Text>
+        <ChevronDown size={16} color={C.primary} />
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setOpen(false)}>
@@ -82,10 +79,10 @@ export function Sel({
                     setOpen(false);
                   }}
                 >
-                  <Text style={{ fontSize: 14, color: item === value ? C.primary : C.text, fontWeight: item === value ? "700" : "400" }}>
+                  <Text style={{ fontSize: 15, color: item === value ? C.primary : C.text, fontWeight: item === value ? "700" : "400" }}>
                     {item}
                   </Text>
-                  {item === value && <Check size={16} color={C.primary} />}
+                  {item === value && <Check size={18} color={C.primary} />}
                 </Pressable>
               )}
             />
@@ -108,22 +105,18 @@ export function Btn({
 }) {
   const variantStyle = {
     primary: [{ backgroundColor: C.primary }, sh.btn],
-    outline: [{ backgroundColor: C.surface, borderWidth: 1, borderColor: C.border }, sh.sm],
-    danger: [{ backgroundColor: C.redBg, borderWidth: 1, borderColor: "#FECDD3" }],
+    outline: [{ backgroundColor: C.surface, borderWidth: 1.5, borderColor: "#C9DBFA" }],
+    danger: [{ backgroundColor: C.redBg }],
   }[variant];
 
-  const textColor = { primary: "#FFF", outline: C.sub, danger: C.red }[variant];
+  const textColor = { primary: "#FFF", outline: C.primary, danger: C.red }[variant];
 
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.btn,
-        ...variantStyle,
-        pressed && { opacity: 0.85 },
-      ]}
+      style={({ pressed }) => [styles.btn, ...variantStyle, pressed && { opacity: 0.88, transform: [{ scale: 0.99 }] }]}
     >
-      <Text style={{ fontSize: 14, fontWeight: "700", color: textColor }}>{children}</Text>
+      <Text style={{ fontSize: 15, fontWeight: "700", color: textColor }}>{children}</Text>
     </Pressable>
   );
 }
@@ -131,7 +124,7 @@ export function Btn({
 // ── Toggle switch ──────────────────────────────────────────────────
 export function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
-    <Pressable onPress={onToggle} style={[styles.toggleTrack, { backgroundColor: on ? C.primary : "#E2E8F0" }]}>
+    <Pressable onPress={onToggle} style={[styles.toggleTrack, { backgroundColor: on ? C.primary : "#C9D8F2" }]}>
       <View style={[styles.toggleThumb, { marginLeft: on ? 26 : 2 }]} />
     </Pressable>
   );
@@ -139,77 +132,69 @@ export function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) 
 
 const styles = StyleSheet.create({
   fieldLabel: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "500",
     color: C.sub,
-    letterSpacing: 0.5,
     marginBottom: 6,
-    textTransform: "uppercase",
   },
   input: {
     width: "100%",
-    height: 48,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 12,
+    height: 52,
+    borderWidth: 1.5,
+    borderColor: "#D3E1FA",
+    borderRadius: 16,
     paddingHorizontal: 16,
-    fontSize: 14,
     color: C.text,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFF",
   },
   select: {
-    height: 40,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    height: 46,
+    paddingHorizontal: 16,
+    borderRadius: 14,
     backgroundColor: C.primaryLt,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 6,
+    gap: 8,
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15,23,42,0.4)",
+    backgroundColor: "rgba(18,41,95,0.45)",
     justifyContent: "flex-end",
   },
   modalSheet: {
     backgroundColor: "#FFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     maxHeight: "60%",
     paddingVertical: 8,
   },
   modalOption: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: "#EAF1FD",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   btn: {
     width: "100%",
-    height: 52,
-    borderRadius: 16,
+    height: 54,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
   toggleTrack: {
     width: 48,
-    height: 24,
-    borderRadius: 12,
+    height: 26,
+    borderRadius: 13,
     justifyContent: "center",
   },
   toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: "#FFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
   },
 });

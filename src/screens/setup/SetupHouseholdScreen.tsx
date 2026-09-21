@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, Alert, StyleSheet } from "react-native";
+import { View, Pressable, Alert, StyleSheet } from "react-native";
+import { Text } from "../../ui/Text";
 import { Plus, Trash2, Users } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";

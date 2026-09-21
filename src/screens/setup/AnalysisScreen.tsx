@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, Animated, Easing, Pressable, StyleSheet } from "react-native";
+import { View, Animated, Easing, Pressable, StyleSheet } from "react-native";
+import { Text } from "../../ui/Text";
 import Svg, { Circle } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
