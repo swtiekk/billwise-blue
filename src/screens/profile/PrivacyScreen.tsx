@@ -1,9 +1,9 @@
 import React from "react";
-import { View, Pressable, ScrollView, StyleSheet } from "react-native";
-import { Text } from "../../ui/Text";
-import { ArrowLeft } from "lucide-react-native";
+import { View, ScrollView, StyleSheet } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
+import { Text } from "../../ui/Text";
+import { ScreenHeader } from "../../components/ScreenHeader";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import type { RootStackParamList } from "../../navigation/routes";
 
@@ -37,14 +37,9 @@ export default function PrivacyScreen({ navigation }: Props) {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <FocusedStatusBar style="dark" />
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ArrowLeft size={18} color={C.primaryDk} strokeWidth={2} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Privacy Policy</Text>
-      </View>
+      <ScreenHeader title="Privacy policy" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         {SECTIONS.map((s) => (
           <View key={s.title} style={[styles.card, sh.sm]}>
             <Text style={styles.title}>{s.title}</Text>
@@ -57,10 +52,7 @@ export default function PrivacyScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  header: { backgroundColor: C.surface, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: C.border, flexDirection: "row", alignItems: "center", gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "700", color: C.text },
-  card: { backgroundColor: C.surface, borderRadius: 16, padding: 16 },
-  title: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 4 },
-  body: { fontSize: 12, color: C.muted, lineHeight: 18 },
+  card: { backgroundColor: C.surface, borderRadius: 24, padding: 18 },
+  title: { fontSize: 15, fontWeight: "700", color: C.text, marginBottom: 6 },
+  body: { fontSize: 13, color: C.sub, lineHeight: 20 },
 });

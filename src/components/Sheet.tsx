@@ -1,9 +1,9 @@
 import React from "react";
 import { Modal, View, Pressable, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
-import { Text } from "../ui/Text";
 import { C } from "../theme";
+import { Text } from "../ui/Text";
 
-/** Bottom sheet, styled like the modal inside <Sel> (same backdrop and rounded top). */
+/** Bottom sheet, same soft style as the dropdown list in <Sel>. */
 export function Sheet({
   visible,
   onClose,
@@ -20,6 +20,7 @@ export function Sheet({
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.wrap}>
         <Pressable style={{ flex: 1 }} onPress={onClose} />
         <View style={styles.sheet}>
+          <View style={styles.handle} />
           <Text style={styles.title}>{title}</Text>
           {children}
         </View>
@@ -29,14 +30,8 @@ export function Sheet({
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: "rgba(15,23,42,0.4)", justifyContent: "flex-end" },
-  sheet: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-  },
-  title: { fontSize: 16, fontWeight: "700", color: C.text, marginBottom: 16 },
+  wrap: { flex: 1, backgroundColor: "rgba(18,41,95,0.45)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28 },
+  handle: { alignSelf: "center", width: 40, height: 5, borderRadius: 3, backgroundColor: "#D3E1FA", marginBottom: 14 },
+  title: { fontSize: 20, fontWeight: "800", color: C.text, marginBottom: 16 },
 });

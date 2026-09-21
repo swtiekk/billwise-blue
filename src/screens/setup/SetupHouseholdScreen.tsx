@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { View, Pressable, Alert, StyleSheet } from "react-native";
-import { Text } from "../../ui/Text";
 import { Plus, Trash2, Users } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
+import { Text } from "../../ui/Text";
 import { Field, Sel, Btn, FL } from "../../components/Atoms";
 import { Sheet } from "../../components/Sheet";
 import { SetupLayout } from "../../components/SetupLayout";
@@ -83,7 +83,7 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
     setSaving(true);
     try {
       await saveHouseholdEdit(draft);
-      navigation.reset({ index: 0, routes: [{ name: "Analysis" }] }); // Save Changes -> Loading -> Home
+      navigation.reset({ index: 0, routes: [{ name: "Analysis" }] }); // Save changes -> Loading -> Home
     } catch (e) {
       setError(errorMessage(e));
       setSaving(false);
@@ -97,30 +97,30 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
   return (
     <SetupLayout
       step={edit ? undefined : 1}
-      title={edit ? "Edit Household Profile" : "Household Profile"}
+      title={edit ? "Edit household" : "Who's in your household?"}
       subtitle={edit ? "Update your family details and earners." : "Tell us about your family so we can plan your budget."}
       onBack={edit ? () => navigation.goBack() : undefined}
       onNext={next}
-      nextLabel={edit ? (saving ? "Saving…" : "Save Changes") : "Next"}
+      nextLabel={edit ? (saving ? "Saving…" : "Save changes") : "Next"}
       error={error}
     >
       <Field
-        label="Total Family Members"
+        label="Total family members"
         value={draft.totalMembers}
         onChange={(v) => patch({ totalMembers: digits(v) })}
         placeholder="e.g. 4"
         keyboardType="numeric"
       />
       <Field
-        label="Number of Dependents"
+        label="Number of dependents"
         value={draft.dependents}
         onChange={(v) => patch({ dependents: digits(v) })}
         placeholder="e.g. 2"
         keyboardType="numeric"
       />
-      <View style={{ marginBottom: 16 }}>
+      <View style={{ marginBottom: 20 }}>
         <Sel
-          label="Housing Type"
+          label="Housing type"
           value={draft.housing || "Select housing type"}
           onChange={(v) => patch({ housing: v })}
           options={HOUSING_TYPES}
@@ -128,7 +128,7 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
       </View>
 
       <FL>Earners</FL>
-      <View style={{ gap: 8, marginBottom: 10 }}>
+      <View style={{ gap: 10, marginBottom: 12 }}>
         {draft.earners.map((e) => (
           <View key={e.id} style={[styles.earnerRow, sh.sm]}>
             <View style={styles.avatar}>
@@ -141,29 +141,27 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
               {e.firstName} {e.lastName}
             </Text>
             <Pressable onPress={() => askRemove(e.id, e.serverId, `${e.firstName} ${e.lastName}`)} hitSlop={8}>
-              <Trash2 size={16} color={C.muted} strokeWidth={1.75} />
+              <Trash2 size={18} color={C.muted} strokeWidth={1.8} />
             </Pressable>
           </View>
         ))}
         {draft.earners.length === 0 ? (
           <View style={styles.empty}>
-            <Users size={20} color="#CBD5E1" strokeWidth={1.5} />
+            <Users size={22} color="#9DB0D6" strokeWidth={1.6} />
             <Text style={styles.emptyText}>No earners yet</Text>
           </View>
         ) : null}
       </View>
 
       <Pressable onPress={() => setModal(true)} style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}>
-        <Plus size={15} color={C.primary} strokeWidth={2.5} />
-        <Text style={styles.addBtnText}>Add Earner</Text>
+        <Plus size={18} color={C.primary} strokeWidth={2.5} />
+        <Text style={styles.addBtnText}>Add earner</Text>
       </Pressable>
-      {edit ? (
-        <Text style={styles.note}>New earners start with ₱0 income. Set it in Edit Income Details.</Text>
-      ) : null}
+      {edit ? <Text style={styles.note}>New earners start with ₱0 income. Set it in Edit income.</Text> : null}
 
-      <Sheet visible={modal} onClose={() => setModal(false)} title="Add Earner">
-        <Field label="First Name" value={first} onChange={setFirst} placeholder="Juan" />
-        <Field label="Last Name" value={last} onChange={setLast} placeholder="dela Cruz" />
+      <Sheet visible={modal} onClose={() => setModal(false)} title="Add earner">
+        <Field label="First name" value={first} onChange={setFirst} placeholder="Juan" />
+        <Field label="Last name" value={last} onChange={setLast} placeholder="dela Cruz" />
         {modalError ? <Text style={styles.modalError}>{modalError}</Text> : null}
         <Btn onPress={saveEarner}>Save</Btn>
       </Sheet>
@@ -172,14 +170,14 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  earnerRow: { backgroundColor: C.surface, borderRadius: 16, padding: 12, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: C.border },
-  avatar: { width: 36, height: 36, borderRadius: 12, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 12, fontWeight: "700", color: C.primary },
-  earnerName: { flex: 1, fontSize: 13, fontWeight: "600", color: C.text },
-  empty: { alignItems: "center", paddingVertical: 16, gap: 4, backgroundColor: "#F8FAFC", borderRadius: 16 },
-  emptyText: { fontSize: 12, color: C.muted },
-  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 44, borderRadius: 12, backgroundColor: C.primaryLt, marginBottom: 12 },
-  addBtnText: { fontSize: 13, fontWeight: "700", color: C.primary },
-  note: { fontSize: 11, color: C.muted, marginBottom: 12, marginTop: -4 },
-  modalError: { color: C.red, fontSize: 12, marginBottom: 10 },
+  earnerRow: { backgroundColor: C.surface, borderRadius: 22, padding: 12, flexDirection: "row", alignItems: "center", gap: 12 },
+  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 13, fontWeight: "700", color: C.primary },
+  earnerName: { flex: 1, fontSize: 15, fontWeight: "600", color: C.text },
+  empty: { alignItems: "center", paddingVertical: 20, gap: 6, backgroundColor: "#E8F0FE", borderRadius: 22 },
+  emptyText: { fontSize: 13, color: C.muted },
+  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 50, borderRadius: 25, backgroundColor: C.primaryLt },
+  addBtnText: { fontSize: 14, fontWeight: "700", color: C.primary },
+  note: { fontSize: 12, color: C.muted, marginTop: 10 },
+  modalError: { color: C.red, fontSize: 13, marginBottom: 10 },
 });

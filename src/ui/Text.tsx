@@ -6,11 +6,15 @@ import { useTextScale } from "../context/TextSizeContext";
 // Text inside Text (a link inside a sentence) should inherit the parent's font unless it sets its own.
 const InsideText = createContext(false);
 
+const round = (n: number) => Math.round(n * 10) / 10;
+
 /**
  * Drop-in replacement for React Native's <Text>. It:
- *  1. uses Lexend, choosing the right font file from the style's fontWeight,
+ *  1. uses Lexend, choosing the right font file from the style's fontWeight
+ *     (the weight lives in the font name, so fontWeight itself is NOT sent to the phone),
  *  2. applies the app-wide text scale (BASE_TEXT_SCALE x the Profile "Text size" setting),
- *  3. caps how much the phone's own font-size setting can enlarge it.
+ *  3. tightens the letter-spacing of large text, so big numbers and titles look designed,
+ *  4. caps how much the phone's own font-size setting can enlarge it.
  * Screens keep writing fontSize / fontWeight exactly as before.
  */
 export function Text({ style, children, maxFontSizeMultiplier = MAX_SYSTEM_FONT_MULTIPLIER, ...rest }: TextProps) {
@@ -18,18 +22,26 @@ export function Text({ style, children, maxFontSizeMultiplier = MAX_SYSTEM_FONT_
   const scale = useTextScale() * BASE_TEXT_SCALE;
   const flat = (StyleSheet.flatten(style) ?? {}) as TextStyle;
 
-  const override: TextStyle = {};
-  if (!nested || flat.fontWeight != null || flat.fontFamily != null) {
-    override.fontFamily = flat.fontFamily ?? familyForWeight(flat.fontWeight);
-    override.fontWeight = "normal"; // the font file already carries the weight
+  // Expo's documented way to use a custom font is the font name alone. Sending fontWeight as well can make
+  // Android re-weight or ignore the font, so it is removed here.
+  const { fontWeight, ...base } = flat;
+  const final: TextStyle = { ...base };
+
+  if (!nested || fontWeight != null || flat.fontFamily != null) {
+    final.fontFamily = flat.fontFamily ?? familyForWeight(fontWeight);
   }
-  if (flat.fontSize != null) override.fontSize = Math.round(flat.fontSize * scale * 10) / 10;
-  else if (!nested) override.fontSize = Math.round(14 * scale * 10) / 10;
-  if (flat.lineHeight != null) override.lineHeight = Math.round(flat.lineHeight * scale * 10) / 10;
+
+  const baseSize = flat.fontSize ?? (nested ? undefined : 14);
+  if (baseSize != null) {
+    final.fontSize = round(baseSize * scale);
+    // Lexend is wide, so large sizes look loose; pull them in a little.
+    if (flat.letterSpacing == null && baseSize >= 22) final.letterSpacing = round(-(baseSize >= 30 ? 0.03 : 0.02) * final.fontSize);
+  }
+  if (flat.lineHeight != null) final.lineHeight = round(flat.lineHeight * scale);
 
   return (
     <InsideText.Provider value={true}>
-      <RNText {...rest} maxFontSizeMultiplier={maxFontSizeMultiplier} style={[style, override]}>
+      <RNText {...rest} maxFontSizeMultiplier={maxFontSizeMultiplier} style={final}>
         {children}
       </RNText>
     </InsideText.Provider>

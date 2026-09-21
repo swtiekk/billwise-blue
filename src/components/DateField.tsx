@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { View, Pressable, Platform, StyleSheet } from "react-native";
-import { Text } from "../ui/Text";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { CalendarDays } from "lucide-react-native";
 import { C } from "../theme";
+import { Text } from "../ui/Text";
 import { FL, Btn } from "./Atoms";
 import { Sheet } from "./Sheet";
 import { formatLong, fromISO, toISO } from "../utils/dates";
@@ -32,10 +32,8 @@ export function DateField({
     <View style={{ marginBottom: 16 }}>
       <FL>{label}</FL>
       <Pressable style={styles.input} onPress={() => setOpen(true)}>
-        <Text style={{ fontSize: 14, color: value ? C.text : "#CBD5E1" }}>
-          {value ? formatLong(value) : "Select date"}
-        </Text>
-        <CalendarDays size={16} color={C.muted} />
+        <Text style={{ fontSize: 15, color: value ? C.text : "#9DB0D6" }}>{value ? formatLong(value) : "Select date"}</Text>
+        <CalendarDays size={18} color={C.primary} />
       </Pressable>
 
       {Platform.OS === "android" && open ? (
@@ -54,16 +52,16 @@ export function DateField({
   );
 }
 
-// same look as the `input` style in Atoms.tsx
+// same look as the input in Atoms.tsx
 const styles = StyleSheet.create({
   input: {
     width: "100%",
-    height: 48,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 12,
+    height: 52,
+    borderWidth: 1.5,
+    borderColor: "#D3E1FA",
+    borderRadius: 16,
     paddingHorizontal: 16,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",

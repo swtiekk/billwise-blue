@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { View, StyleSheet } from "react-native";
-import { Text } from "../../ui/Text";
-import { Info } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { C, fmt } from "../../theme";
-import { Field, FL } from "../../components/Atoms";
+import { C, fmt, sh } from "../../theme";
+import { Text } from "../../ui/Text";
+import { Field } from "../../components/Atoms";
+import { Piso } from "../../components/Piso";
 import { SetupLayout } from "../../components/SetupLayout";
 import { ScreenLoading } from "../../components/ScreenLoading";
 import { useSetup, combinedIncome } from "../../context/SetupContext";
@@ -73,54 +73,56 @@ export default function SetupRangesScreen({ navigation, route }: Props) {
   return (
     <SetupLayout
       step={edit ? undefined : 4}
-      title={edit ? "Edit Budget Ranges" : "Budget Ranges"}
+      title={edit ? "Edit budget ranges" : "How much do they cost?"}
       subtitle="Set a minimum and maximum you expect to pay for each bill."
       onBack={() => navigation.goBack()}
       onNext={submit}
-      nextLabel={edit ? (loading ? "Saving…" : "Save Changes") : loading ? "Submitting…" : "Submit Setup"}
+      nextLabel={edit ? (loading ? "Saving…" : "Save changes") : loading ? "Submitting…" : "Submit setup"}
       error={error}
     >
-      <View style={styles.periodRow}>
+      <View style={styles.topRow}>
         <View style={styles.periodChip}>
           <Text style={styles.periodText}>{firstPayday ? monthYear(firstPayday) : "Budget period"}</Text>
         </View>
       </View>
 
-      <View style={styles.combinedCard}>
+      <View style={styles.combined}>
         <Text style={styles.combinedLabel}>Combined income</Text>
-        <Text style={styles.combinedValue}>
+        <Text style={styles.combinedValue} numberOfLines={1} adjustsFontSizeToFit>
           {combined.max === 0 ? "—" : `${fmt(combined.min)} – ${fmt(combined.max)}`}
         </Text>
       </View>
 
       {draft.bills.map((b) => (
-        <View key={b.id} style={{ marginBottom: 4 }}>
+        <View key={b.id} style={[styles.billCard, sh.sm]}>
           <Text style={styles.billName}>{b.name}</Text>
           <View style={{ flexDirection: "row", gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <Field label="Min Amount (₱)" value={b.min} onChange={(v) => updateBill(b.id, { min: money(v) })} placeholder="0" keyboardType="numeric" />
+              <Field label="Min (₱)" value={b.min} onChange={(v) => updateBill(b.id, { min: money(v) })} placeholder="0" keyboardType="numeric" />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label="Max Amount (₱)" value={b.max} onChange={(v) => updateBill(b.id, { max: money(v) })} placeholder="0" keyboardType="numeric" />
+              <Field label="Max (₱)" value={b.max} onChange={(v) => updateBill(b.id, { max: money(v) })} placeholder="0" keyboardType="numeric" />
             </View>
           </View>
         </View>
       ))}
 
-      <FL>Daily Expenses</FL>
-      <View style={{ flexDirection: "row", gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Field label="Food (₱ / day)" value={draft.dailyFood} onChange={(v) => patch({ dailyFood: money(v) })} placeholder="0" keyboardType="numeric" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Field label="Transport (₱ / day)" value={draft.dailyTransport} onChange={(v) => patch({ dailyTransport: money(v) })} placeholder="0" keyboardType="numeric" />
+      <View style={[styles.billCard, sh.sm]}>
+        <Text style={styles.billName}>Daily costs</Text>
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Field label="Food (₱ a day)" value={draft.dailyFood} onChange={(v) => patch({ dailyFood: money(v) })} placeholder="0" keyboardType="numeric" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Field label="Transport (₱ a day)" value={draft.dailyTransport} onChange={(v) => patch({ dailyTransport: money(v) })} placeholder="0" keyboardType="numeric" />
+          </View>
         </View>
       </View>
 
       <View style={styles.note}>
-        <Info size={16} color={C.primary} strokeWidth={1.75} />
+        <Piso size={36} mood="happy" />
         <Text style={styles.noteText}>
-          We use these numbers to check whether your income covers your bills and daily needs until your next payday.
+          I use these numbers to check whether your income covers your bills and daily needs until your next payday.
         </Text>
       </View>
     </SetupLayout>
@@ -128,13 +130,14 @@ export default function SetupRangesScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  periodRow: { flexDirection: "row", marginBottom: 14 },
-  periodChip: { backgroundColor: C.primaryLt, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 5 },
+  topRow: { flexDirection: "row", marginBottom: 14 },
+  periodChip: { backgroundColor: C.primaryLt, borderRadius: 99, paddingHorizontal: 14, paddingVertical: 5 },
   periodText: { fontSize: 12, fontWeight: "600", color: C.primary },
-  combinedCard: { backgroundColor: C.primaryLt, borderRadius: 16, padding: 16, marginBottom: 20 },
-  combinedLabel: { fontSize: 12, fontWeight: "500", color: C.sub },
-  combinedValue: { fontSize: 26, fontWeight: "800", color: C.primaryDk, marginTop: 4 },
-  billName: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 8 },
-  note: { flexDirection: "row", gap: 10, backgroundColor: C.primaryLt, borderRadius: 12, padding: 12, marginTop: 4, marginBottom: 8 },
-  noteText: { flex: 1, fontSize: 12, color: C.sub, lineHeight: 17 },
+  combined: { backgroundColor: C.primary, borderRadius: 24, padding: 18, marginBottom: 14 },
+  combinedLabel: { fontSize: 12, color: "#D3E4FF" },
+  combinedValue: { fontSize: 24, fontWeight: "800", color: "#FFF", marginTop: 4 },
+  billCard: { backgroundColor: C.surface, borderRadius: 24, padding: 16, marginBottom: 12 },
+  billName: { fontSize: 15, fontWeight: "700", color: C.text, marginBottom: 12 },
+  note: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.primaryLt, borderRadius: 22, padding: 14, marginTop: 4 },
+  noteText: { flex: 1, fontSize: 13, color: C.sub, lineHeight: 19 },
 });

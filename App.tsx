@@ -3,16 +3,18 @@ import { StatusBar, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import {
   useFonts,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_700Bold,
-  Inter_800ExtraBold,
-} from "@expo-google-fonts/inter";
+  Lexend_400Regular,
+  Lexend_500Medium,
+  Lexend_600SemiBold,
+  Lexend_700Bold,
+  Lexend_800ExtraBold,
+} from "@expo-google-fonts/lexend";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { C } from "./src/theme";
 import { SessionProvider } from "./src/context/SessionContext";
 import { SetupProvider } from "./src/context/SetupContext";
+import { TextSizeProvider } from "./src/context/TextSizeContext";
 import { navigationRef } from "./src/navigation/navigationRef";
 import RootNavigator from "./src/navigation/RootNavigator";
 import { configureNotifications } from "./src/notifications/reminders";
@@ -23,10 +25,11 @@ configureNotifications();
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_700Bold,
-    Inter_800ExtraBold,
+    Lexend_400Regular,
+    Lexend_500Medium,
+    Lexend_600SemiBold,
+    Lexend_700Bold,
+    Lexend_800ExtraBold,
   });
 
   if (!fontsLoaded) return null;
@@ -35,6 +38,7 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={styles.root} edges={["left", "right"]}>
         <StatusBar translucent backgroundColor="transparent" />
+        <TextSizeProvider>
         <SessionProvider>
           <SetupProvider>
             <NavigationContainer ref={navigationRef}>
@@ -43,6 +47,7 @@ export default function App() {
             </NavigationContainer>
           </SetupProvider>
         </SessionProvider>
+        </TextSizeProvider>
       </SafeAreaView>
     </SafeAreaProvider>
   );

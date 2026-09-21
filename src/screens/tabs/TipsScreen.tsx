@@ -1,40 +1,35 @@
-import React, { useCallback, useMemo } from "react";
-import { View, ScrollView, RefreshControl, StyleSheet } from "react-native";
-import { Text } from "../../ui/Text";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { View, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { LinearGradient } from "expo-linear-gradient";
-import { AlertTriangle, CalendarClock, CheckCircle2, Info, Lightbulb, RefreshCw, Hourglass } from "lucide-react-native";
+import { AlertTriangle, CalendarClock, CheckCircle2, Info, Check } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { C, sh, HERO_GRADIENT, fmt } from "../../theme";
+import { C, sh, fmt } from "../../theme";
+import { Text } from "../../ui/Text";
 import { TabBar } from "../../components/TabBar";
 import { Btn } from "../../components/Atoms";
+import { Piso } from "../../components/Piso";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { useBills } from "../../hooks/useBills";
-import { useRisk, riskDisplay } from "../../hooks/useRisk";
+import { useRisk } from "../../hooks/useRisk";
 import { useRecommendations } from "../../hooks/useRecommendations";
 import { useTabNav } from "../../navigation/useTabNav";
 import { amountLabel } from "../../api/bills";
 import { Tip, TipKind, buildTips, projectRisk, rangeText, sortByPriority, sumBills } from "../../utils/billInsights";
+import { STATUS } from "../../utils/statusStyle";
 import { formatShort } from "../../utils/dates";
-import type { RiskLabel } from "../../api/types";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Tips">;
 
-// warning = amber, success = green, info = violet
-const KIND_STYLE: Record<TipKind, { bg: string; border: string; iconBg: string; color: string }> = {
-  warning: { bg: C.amberBg, border: "#FDE68A", iconBg: "#FEF3C7", color: C.amber },
-  success: { bg: C.greenBg, border: "#A7F3D0", iconBg: "#D1FAE5", color: C.green },
-  info: { bg: C.purpleBg, border: "#E9D5FF", iconBg: "#EDE9FE", color: C.purple },
+// warning = orange, success = green, info = violet (as in your flow)
+const KIND_STYLE: Record<TipKind, { bg: string; iconBg: string; color: string }> = {
+  warning: { bg: C.amberBg, iconBg: "#FFD9B8", color: "#9A4308" },
+  success: { bg: C.greenBg, iconBg: "#B4EAD6", color: "#0B6B53" },
+  info: { bg: C.purpleBg, iconBg: "#E0D6FF", color: C.purple },
 };
 
 const TIP_ICON = { alert: AlertTriangle, check: CheckCircle2, info: Info, calendar: CalendarClock } as const;
-
-const LABEL_STYLE: Record<RiskLabel, { text: string; bg: string; color: string }> = {
-  STABLE: { text: "Stable", bg: C.greenBg, color: C.green },
-  "AT RISK": { text: "At Risk", bg: C.amberBg, color: C.amber },
-  CRITICAL: { text: "Critical", bg: C.redBg, color: C.red },
-};
+const METER = ["#12A37A", "#F2792B", "#E23D55"];
 
 export default function TipsScreen({ navigation }: Props) {
   const goTab = useTabNav();
@@ -56,131 +51,140 @@ export default function TipsScreen({ navigation }: Props) {
     refreshRecs();
   }, [refreshBills, refreshRisk, refreshRecs]);
 
-  const rd = riskDisplay(risk);
   const tips = useMemo(() => buildTips(bills, risk), [bills, risk]);
+  const status = risk ? STATUS[risk.label] : null;
 
   const showDeferral = !!risk && (recs?.activate_deferral ?? risk.label !== "STABLE");
   const deferrable = useMemo(
     () => sortByPriority(bills.filter((b) => b.classification === "Deferrable")).reverse(), // lowest priority first
     [bills]
   );
-  const freed = sumBills(deferrable);
-  const projected: RiskLabel | null = risk ? projectRisk(risk, freed.max) : null;
+
+  // every deferrable bill starts ticked; untick one to see how the result changes
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    setPicked(Object.fromEntries(deferrable.map((b) => [b.id, true])));
+  }, [deferrable]);
+  const chosen = deferrable.filter((b) => picked[b.id]);
+  const freed = sumBills(chosen);
+  const projected = risk && chosen.length > 0 ? STATUS[projectRisk(risk, freed.max)] : null;
 
   const remaining = risk ? Number(risk.remaining_budget_min) : null;
-  const caption = risk
-    ? `${fmt(remaining ?? 0)} left after bills · ${risk.days_until_next_payday} days to payday`
-    : "";
+  const need = risk ? Number(risk.total_daily_need_min) : null;
+  const dateText = risk?.next_payday ? formatShort(risk.next_payday) : "payday";
+
+  const bubble = !risk
+    ? "Let me check your budget…"
+    : risk.label === "STABLE"
+    ? `You're covered until ${dateText}. Nice work!`
+    : risk.label === "AT RISK"
+    ? `Tight until ${dateText}. Let's move some bills to next time.`
+    : `It's critical until ${dateText}. Let's free up some cash.`;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <FocusedStatusBar style="light" />
-      <LinearGradient colors={HERO_GRADIENT} style={styles.hero}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <Lightbulb size={20} color="#FDE68A" strokeWidth={1.75} />
-          <Text style={styles.heroTitle}>Recommendations</Text>
-        </View>
-        <Text style={styles.heroSub}>Based on your bills, income and daily expenses</Text>
-
-        <View style={styles.statusCard}>
-          <Text style={styles.statusLabel}>Financial sustainability</Text>
-          <Text style={[styles.statusValue, { color: rd.color }]}>{rd.label}</Text>
-          {caption ? <Text style={styles.statusCaption}>{caption}</Text> : null}
-          <View style={styles.track}>
-            <View style={[styles.fill, { width: `${rd.pct}%`, backgroundColor: rd.barColor }]} />
-          </View>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
-            <Text style={styles.trackLabel}>Stable</Text>
-            <Text style={styles.trackLabel}>Critical</Text>
-          </View>
-        </View>
-      </LinearGradient>
-
+      <FocusedStatusBar style="dark" />
       <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 20 }}
+        contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshAll} />}
       >
-        {riskError ? <Text style={styles.errorText}>{riskError}</Text> : null}
-
-        <View>
-          <View style={styles.sectionHeader}>
-            <Info size={16} color={C.muted} strokeWidth={1.75} />
-            <Text style={styles.sectionTitle}>Bill Recommendations</Text>
-          </View>
-          <View style={{ gap: 10 }}>
-            {tips.map((tip: Tip) => {
-              const k = KIND_STYLE[tip.kind];
-              const Icon = TIP_ICON[tip.icon];
-              return (
-                <View key={tip.id} style={[styles.tipCard, { backgroundColor: k.bg, borderColor: k.border }]}>
-                  <View style={[styles.tipIcon, { backgroundColor: k.iconBg }]}>
-                    <Icon size={18} color={k.color} strokeWidth={1.75} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.tipTitle}>{tip.title}</Text>
-                    <Text style={styles.tipDesc}>{tip.desc}</Text>
-                  </View>
-                </View>
-              );
-            })}
+        <View style={styles.chat}>
+          <Piso size={60} mood={status?.mood ?? "happy"} />
+          <View style={styles.bubble}>
+            <Text style={styles.bubbleText}>{bubble}</Text>
           </View>
         </View>
 
-        {showDeferral ? (
-          <View>
-            <View style={styles.sectionHeader}>
-              <Hourglass size={16} color={C.muted} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>Deferral Recommendation</Text>
+        {riskError ? <Text style={styles.errorText}>{riskError}</Text> : null}
+
+        {/* financial sustainability status */}
+        {status && risk ? (
+          <View style={[styles.statusCard, { backgroundColor: status.bg }]}>
+            <View style={styles.statusHead}>
+              <status.Icon size={22} color={status.fg} strokeWidth={2} />
+              <Text style={[styles.statusWord, { color: status.fg }]}>{status.label}</Text>
             </View>
-            <View style={[styles.deferCard, sh.sm]}>
-              <Text style={styles.deferIntro}>
-                {recs?.message ?? "Your remaining budget may not cover daily expenses until payday. Consider deferring the bills below."}
-              </Text>
-
-              {deferrable.map((b) => (
-                <View key={b.id} style={styles.deferRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.deferName} numberOfLines={1}>{b.name}</Text>
-                    <Text style={styles.deferSub}>
-                      {b.priority ?? "Unclassified"} priority · due {formatShort(b.dueDate)}
-                    </Text>
-                  </View>
-                  <Text style={styles.deferAmount}>{amountLabel(b)}</Text>
-                </View>
+            <Text style={[styles.statusSentence, { color: status.fg }]}>
+              {fmt(Math.round(remaining ?? 0))} left after bills. Daily costs until payday need about {fmt(Math.round(need ?? 0))}.
+            </Text>
+            <View style={styles.meter}>
+              {METER.map((color, i) => (
+                <View key={color} style={[styles.meterSeg, { backgroundColor: color, opacity: i === status.step ? 1 : 0.22 }]} />
               ))}
-
-              {deferrable.length > 0 ? (
-                <>
-                  <View style={styles.divider} />
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Estimated budget freed</Text>
-                    <Text style={styles.summaryValue}>{rangeText(freed.min, freed.max)}</Text>
-                  </View>
-                  {projected ? (
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Projected risk after deferral</Text>
-                      <View style={[styles.pill, { backgroundColor: LABEL_STYLE[projected].bg }]}>
-                        <Text style={[styles.pillText, { color: LABEL_STYLE[projected].color }]}>
-                          {LABEL_STYLE[projected].text}
-                        </Text>
-                      </View>
-                    </View>
-                  ) : null}
-                </>
-              ) : (
-                <Text style={styles.deferEmpty}>
-                  None of your bills can be deferred. Try lowering your daily food or transport costs.
-                </Text>
-              )}
+            </View>
+            <View style={styles.meterLabels}>
+              <Text style={[styles.meterLabel, { color: status.fg }]}>Stable</Text>
+              <Text style={[styles.meterLabel, { color: status.fg }]}>At risk</Text>
+              <Text style={[styles.meterLabel, { color: status.fg }]}>Critical</Text>
             </View>
           </View>
         ) : null}
 
-        <Btn onPress={() => navigation.navigate("Analysis")}>Re-run Analysis</Btn>
-        <View style={styles.rerunHint}>
-          <RefreshCw size={12} color={C.muted} strokeWidth={2} />
-          <Text style={styles.rerunHintText}>Re-classifies your bills and recomputes risk, then returns to Home.</Text>
+        {/* bill recommendations */}
+        <Text style={styles.sectionTitle}>What I noticed</Text>
+        <View style={{ gap: 10 }}>
+          {tips.map((tip: Tip) => {
+            const k = KIND_STYLE[tip.kind];
+            const Icon = TIP_ICON[tip.icon];
+            return (
+              <View key={tip.id} style={[styles.tipCard, { backgroundColor: k.bg }]}>
+                <View style={[styles.tipIcon, { backgroundColor: k.iconBg }]}>
+                  <Icon size={18} color={k.color} strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.tipTitle, { color: k.color }]}>{tip.title}</Text>
+                  <Text style={styles.tipDesc}>{tip.desc}</Text>
+                </View>
+              </View>
+            );
+          })}
         </View>
+
+        {/* deferral recommendation */}
+        {showDeferral ? (
+          <>
+            <Text style={styles.sectionTitle}>Move these to next time</Text>
+            <View style={[styles.deferCard, sh.sm]}>
+              {deferrable.length === 0 ? (
+                <Text style={styles.deferEmpty}>
+                  None of your bills can wait. Try lowering your daily food or transport costs.
+                </Text>
+              ) : (
+                <>
+                  {deferrable.map((b) => {
+                    const on = !!picked[b.id];
+                    return (
+                      <Pressable key={b.id} onPress={() => setPicked((p) => ({ ...p, [b.id]: !p[b.id] }))} style={styles.deferRow}>
+                        <View style={[styles.check, on && styles.checkOn]}>
+                          {on ? <Check size={14} color="#FFF" strokeWidth={3} /> : null}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.deferName} numberOfLines={1}>{b.name}</Text>
+                          <Text style={styles.deferSub}>{b.priority ?? "Unranked"} priority, due {formatShort(b.dueDate)}</Text>
+                        </View>
+                        <Text style={styles.deferAmount}>{amountLabel(b)}</Text>
+                      </Pressable>
+                    );
+                  })}
+
+                  <View style={styles.result}>
+                    <Text style={styles.resultLabel}>
+                      {chosen.length ? `Frees up ${rangeText(freed.min, freed.max)}` : "Tick a bill to see what changes"}
+                    </Text>
+                    {projected ? (
+                      <View style={[styles.resultPill, { backgroundColor: projected.bg }]}>
+                        <Text style={[styles.resultPillText, { color: projected.fg }]}>Then you'd be {projected.label}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </>
+              )}
+            </View>
+          </>
+        ) : null}
+
+        <Btn onPress={() => navigation.navigate("Analysis")}>Re-run analysis</Btn>
+        <Text style={styles.hint}>Re-ranks your bills and checks your budget again, then goes back to Home.</Text>
       </ScrollView>
 
       <TabBar active="tips" onChange={goTab} />
@@ -189,36 +193,35 @@ export default function TipsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  hero: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 24 },
-  heroTitle: { color: "#FFF", fontSize: 20, fontWeight: "700" },
-  heroSub: { color: "#BFDBFE", fontSize: 13 },
-  statusCard: { backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 20, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", marginTop: 16 },
-  statusLabel: { color: "#BFDBFE", fontSize: 12, fontWeight: "500" },
-  statusValue: { fontSize: 38, fontWeight: "800", marginTop: 2 },
-  statusCaption: { color: "#BFDBFE", fontSize: 11, marginTop: 2, marginBottom: 10 },
-  track: { height: 8, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 4, overflow: "hidden", marginTop: 6 },
-  fill: { height: "100%", borderRadius: 4 },
-  trackLabel: { color: "#BFDBFE", fontSize: 10 },
+  scroll: { paddingHorizontal: 16, paddingTop: 56, paddingBottom: 16, gap: 14 },
+  chat: { flexDirection: "row", alignItems: "flex-end", gap: 10 },
+  bubble: { flex: 1, backgroundColor: C.surface, borderRadius: 22, borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 13 },
+  bubbleText: { fontSize: 15, fontWeight: "600", color: C.text, lineHeight: 22 },
   errorText: { color: C.red, fontSize: 12 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: C.text },
-  tipCard: { borderRadius: 16, padding: 14, flexDirection: "row", gap: 12, borderWidth: 1 },
-  tipIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  tipTitle: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 2 },
-  tipDesc: { fontSize: 12, color: C.sub, lineHeight: 17 },
-  deferCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, gap: 10 },
-  deferIntro: { fontSize: 12, color: C.sub, lineHeight: 17 },
-  deferRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#F8FAFC", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  deferName: { fontSize: 13, fontWeight: "600", color: C.text },
-  deferSub: { fontSize: 11, color: C.muted, marginTop: 1 },
-  deferAmount: { fontSize: 13, fontWeight: "700", color: C.text },
-  deferEmpty: { fontSize: 12, color: C.muted, lineHeight: 17 },
-  divider: { height: 1, backgroundColor: C.border },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  summaryLabel: { fontSize: 12, color: C.sub },
-  summaryValue: { fontSize: 13, fontWeight: "700", color: C.text },
-  pill: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3 },
-  pillText: { fontSize: 11, fontWeight: "700" },
-  rerunHint: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: -8 },
-  rerunHintText: { fontSize: 11, color: C.muted },
+  statusCard: { borderRadius: 26, padding: 18, gap: 10 },
+  statusHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  statusWord: { fontSize: 26, fontWeight: "800" },
+  statusSentence: { fontSize: 13, lineHeight: 20 },
+  meter: { flexDirection: "row", gap: 4, marginTop: 4 },
+  meterSeg: { flex: 1, height: 10, borderRadius: 5 },
+  meterLabels: { flexDirection: "row", justifyContent: "space-between" },
+  meterLabel: { fontSize: 11, fontWeight: "500" },
+  sectionTitle: { fontSize: 18, fontWeight: "700", color: C.text, marginTop: 6 },
+  tipCard: { borderRadius: 22, padding: 14, flexDirection: "row", gap: 12 },
+  tipIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  tipTitle: { fontSize: 14, fontWeight: "700", marginBottom: 2 },
+  tipDesc: { fontSize: 13, color: C.sub, lineHeight: 19 },
+  deferCard: { backgroundColor: C.surface, borderRadius: 24, padding: 14, gap: 4 },
+  deferEmpty: { fontSize: 13, color: C.sub, lineHeight: 20 },
+  deferRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: "#B9D0F5", alignItems: "center", justifyContent: "center" },
+  checkOn: { backgroundColor: C.primary, borderColor: C.primary },
+  deferName: { fontSize: 14, fontWeight: "600", color: C.text },
+  deferSub: { fontSize: 12, color: C.muted, marginTop: 1 },
+  deferAmount: { fontSize: 14, fontWeight: "700", color: C.text },
+  result: { marginTop: 6, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#E6EEFB", gap: 8 },
+  resultLabel: { fontSize: 13, fontWeight: "600", color: C.sub },
+  resultPill: { alignSelf: "flex-start", borderRadius: 99, paddingHorizontal: 12, paddingVertical: 5 },
+  resultPillText: { fontSize: 13, fontWeight: "700" },
+  hint: { fontSize: 12, color: C.muted, textAlign: "center", marginTop: -4 },
 });

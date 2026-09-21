@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { View, Pressable, ScrollView, StyleSheet } from "react-native";
-import { Text } from "../../ui/Text";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, fmt } from "../../theme";
+import { Text } from "../../ui/Text";
 import { Sel } from "../../components/Atoms";
 import { DateField } from "../../components/DateField";
 import { SetupLayout } from "../../components/SetupLayout";
@@ -46,7 +46,7 @@ export default function SetupIncomeScreen({ navigation, route }: Props) {
     setSaving(true);
     try {
       await saveIncomeEdit(draft);
-      navigation.reset({ index: 0, routes: [{ name: "Analysis" }] }); // Save Changes -> Loading -> Home
+      navigation.reset({ index: 0, routes: [{ name: "Analysis" }] }); // Save changes -> Loading -> Home
     } catch (e) {
       setError(errorMessage(e));
       setSaving(false);
@@ -60,24 +60,20 @@ export default function SetupIncomeScreen({ navigation, route }: Props) {
   return (
     <SetupLayout
       step={edit ? undefined : 2}
-      title={edit ? "Edit Income Details" : "Income Setup"}
+      title={edit ? "Edit income" : "How does money come in?"}
       subtitle={edit ? "Update what each earner brings in, and when." : "How much does each earner bring in, and when?"}
       onBack={() => navigation.goBack()}
       onNext={next}
-      nextLabel={edit ? (saving ? "Saving…" : "Save Changes") : "Next"}
+      nextLabel={edit ? (saving ? "Saving…" : "Save changes") : "Next"}
       error={error}
     >
       {draft.earners.length > 1 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 20 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 18 }}>
           {draft.earners.map((e) => {
             const on = e.id === earner?.id;
             return (
-              <Pressable
-                key={e.id}
-                onPress={() => setActiveId(e.id)}
-                style={[styles.chip, { backgroundColor: on ? C.primary : "#F1F5F9" }]}
-              >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: on ? "#FFF" : C.sub }}>{e.firstName}</Text>
+              <Pressable key={e.id} onPress={() => setActiveId(e.id)} style={[styles.chip, on && styles.chipOn]}>
+                <Text style={[styles.chipText, on && { color: "#FFF" }]}>{e.firstName}</Text>
               </Pressable>
             );
           })}
@@ -92,7 +88,7 @@ export default function SetupIncomeScreen({ navigation, route }: Props) {
 
           <View style={{ marginBottom: 16 }}>
             <Sel
-              label="Income Range (per payday)"
+              label="Income range (per payday)"
               value={earner.incomeRange || "Select income range"}
               onChange={(v) => updateEarner(earner.id, { incomeRange: v })}
               options={INCOME_BANDS.map((b) => b.label)}
@@ -101,7 +97,7 @@ export default function SetupIncomeScreen({ navigation, route }: Props) {
 
           <View style={{ marginBottom: 16 }}>
             <Sel
-              label="Income Frequency"
+              label="Income frequency"
               value={earner.frequency}
               onChange={(v) => updateEarner(earner.id, { frequency: v })}
               options={FREQUENCIES}
@@ -109,7 +105,7 @@ export default function SetupIncomeScreen({ navigation, route }: Props) {
           </View>
 
           <DateField
-            label="Next Payday"
+            label="Next payday"
             value={earner.nextPayday}
             onChange={(iso) => updateEarner(earner.id, { nextPayday: iso })}
             minimumDate={new Date()}
@@ -117,9 +113,9 @@ export default function SetupIncomeScreen({ navigation, route }: Props) {
         </>
       ) : null}
 
-      <View style={styles.combinedCard}>
+      <View style={styles.combined}>
         <Text style={styles.combinedLabel}>Combined income</Text>
-        <Text style={styles.combinedValue}>
+        <Text style={styles.combinedValue} numberOfLines={1} adjustsFontSizeToFit>
           {combined.max === 0 ? "—" : `${fmt(combined.min)} – ${fmt(combined.max)}`}
         </Text>
         <Text style={styles.combinedSub}>per pay period, all earners</Text>
@@ -129,10 +125,12 @@ export default function SetupIncomeScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 99 },
-  earnerTitle: { fontSize: 16, fontWeight: "700", color: C.text, marginBottom: 14 },
-  combinedCard: { backgroundColor: C.primaryLt, borderRadius: 16, padding: 16, marginTop: 4, marginBottom: 8 },
-  combinedLabel: { fontSize: 12, fontWeight: "500", color: C.sub },
-  combinedValue: { fontSize: 26, fontWeight: "800", color: C.primaryDk, marginTop: 4 },
-  combinedSub: { fontSize: 11, color: C.muted, marginTop: 2 },
+  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99, backgroundColor: C.surface, borderWidth: 1.5, borderColor: "#D3E1FA" },
+  chipOn: { backgroundColor: C.primary, borderColor: C.primary },
+  chipText: { fontSize: 13, fontWeight: "600", color: C.sub },
+  earnerTitle: { fontSize: 18, fontWeight: "700", color: C.text, marginBottom: 14 },
+  combined: { backgroundColor: C.primary, borderRadius: 24, padding: 18, marginTop: 6 },
+  combinedLabel: { fontSize: 12, color: "#D3E4FF" },
+  combinedValue: { fontSize: 26, fontWeight: "800", color: "#FFF", marginTop: 4 },
+  combinedSub: { fontSize: 12, color: "#D3E4FF", marginTop: 4 },
 });

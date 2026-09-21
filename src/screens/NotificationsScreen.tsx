@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { View, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
-import { Text } from "../ui/Text";
 import { useFocusEffect } from "@react-navigation/native";
-import { LinearGradient } from "expo-linear-gradient";
-import { ArrowLeft, AlertTriangle, BellRing, TrendingDown, Info, CheckCheck } from "lucide-react-native";
+import { ArrowLeft, AlertTriangle, BellRing, TrendingDown, Info } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { C, HERO_GRADIENT } from "../theme";
+import { C, sh } from "../theme";
+import { Text } from "../ui/Text";
+import { Piso } from "../components/Piso";
 import type { NotifKind } from "../data";
 import { FocusedStatusBar } from "../components/FocusedStatusBar";
 import { getNotifications } from "../api/insights";
@@ -17,10 +17,10 @@ import type { RootStackParamList } from "../navigation/routes";
 type Props = NativeStackScreenProps<RootStackParamList, "Notifications">;
 
 const NOTIF_CONFIG: Record<NotifKind, { bg: string; iconBg: string; iconColor: string; Icon: any }> = {
-  overdue: { bg: "#FFF1F2", iconBg: "#FFE4E6", iconColor: "#F43F5E", Icon: AlertTriangle },
-  "due-soon": { bg: "#FFFBEB", iconBg: "#FEF3C7", iconColor: "#F59E0B", Icon: BellRing },
-  risk: { bg: C.primaryLt, iconBg: "#DBEAFE", iconColor: C.primary, Icon: TrendingDown },
-  info: { bg: "#F8FAFC", iconBg: "#F1F5F9", iconColor: "#64748B", Icon: Info },
+  overdue: { bg: C.redBg, iconBg: "#FFCDD5", iconColor: "#A3182F", Icon: AlertTriangle },
+  "due-soon": { bg: C.amberBg, iconBg: "#FFD9B8", iconColor: "#9A4308", Icon: BellRing },
+  risk: { bg: C.primaryLt, iconBg: "#BFD9FF", iconColor: C.primary, Icon: TrendingDown },
+  info: { bg: "#EAF0FB", iconBg: "#D3E0F7", iconColor: C.sub, Icon: Info },
 };
 
 const KIND: Record<ApiNotification["type"], NotifKind> = {
@@ -31,8 +31,8 @@ const KIND: Record<ApiNotification["type"], NotifKind> = {
 };
 
 // The backend has no timestamps, so notifications are grouped by urgency instead of "Today".
-type Group = "Needs Attention" | "Coming Up";
-const GROUPS: Group[] = ["Needs Attention", "Coming Up"];
+type Group = "Needs attention" | "Coming up";
+const GROUPS: Group[] = ["Needs attention", "Coming up"];
 
 interface Item {
   id: string;
@@ -60,7 +60,7 @@ function toItem(n: ApiNotification, index: number): Item {
     title: n.title,
     desc: n.message,
     time: dueLabel(n.due_date),
-    group: n.type === "upcoming" ? "Coming Up" : "Needs Attention",
+    group: n.type === "upcoming" ? "Coming up" : "Needs attention",
     hasBill: n.bill_id != null,
   };
 }
@@ -104,22 +104,21 @@ export default function NotificationsScreen({ navigation }: Props) {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <FocusedStatusBar style="light" />
-      <LinearGradient colors={HERO_GRADIENT} style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ArrowLeft size={18} color="#FFF" strokeWidth={2} />
+      <FocusedStatusBar style="dark" />
+      <View style={styles.header}>
+        <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, sh.sm]}>
+          <ArrowLeft size={20} color={C.text} strokeWidth={2} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Notifications</Text>
-          {unreadCount > 0 && <Text style={styles.headerSub}>{unreadCount} unread</Text>}
+          {unreadCount > 0 ? <Text style={styles.headerSub}>{unreadCount} unread</Text> : null}
         </View>
-        {unreadCount > 0 && (
+        {unreadCount > 0 ? (
           <Pressable onPress={markAllRead} style={styles.markAllBtn}>
-            <CheckCheck size={14} color="#FFF" strokeWidth={2} />
             <Text style={styles.markAllText}>Mark all read</Text>
           </Pressable>
-        )}
-      </LinearGradient>
+        ) : null}
+      </View>
 
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 20 }}
@@ -132,8 +131,8 @@ export default function NotificationsScreen({ navigation }: Props) {
           if (!list.length) return null;
           return (
             <View key={group}>
-              <Text style={styles.groupLabel}>{group.toUpperCase()}</Text>
-              <View style={{ gap: 8 }}>
+              <Text style={styles.groupLabel}>{group}</Text>
+              <View style={{ gap: 10 }}>
                 {list.map((n) => {
                   const cfg = NOTIF_CONFIG[n.kind];
                   const isRead = read.has(n.id);
@@ -141,26 +140,20 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Pressable
                       key={n.id}
                       onPress={() => open(n)}
-                      style={({ pressed }) => [
-                        styles.notifCard,
-                        { backgroundColor: isRead ? C.surface : cfg.bg },
-                        pressed && { opacity: 0.75 },
-                      ]}
+                      style={({ pressed }) => [styles.card, { backgroundColor: isRead ? C.surface : cfg.bg }, pressed && { opacity: 0.8 }]}
                     >
                       <View>
                         <View style={[styles.iconWrap, { backgroundColor: cfg.iconBg }]}>
-                          <cfg.Icon size={18} color={cfg.iconColor} strokeWidth={1.75} />
+                          <cfg.Icon size={20} color={cfg.iconColor} strokeWidth={1.9} />
                         </View>
-                        {!isRead && <View style={styles.unreadDot} />}
+                        {!isRead ? <View style={styles.unreadDot} /> : null}
                       </View>
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-                          <Text style={[styles.notifTitle, { fontWeight: isRead ? "500" : "700", color: isRead ? C.sub : C.text }]}>
-                            {n.title}
-                          </Text>
-                          <Text style={styles.notifTime}>{n.time}</Text>
+                          <Text style={[styles.title, { fontWeight: isRead ? "500" : "700", color: isRead ? C.sub : C.text }]}>{n.title}</Text>
+                          <Text style={styles.time}>{n.time}</Text>
                         </View>
-                        <Text style={styles.notifDesc}>{n.desc}</Text>
+                        <Text style={styles.desc}>{n.desc}</Text>
                       </View>
                     </Pressable>
                   );
@@ -171,14 +164,10 @@ export default function NotificationsScreen({ navigation }: Props) {
         })}
 
         {loaded && !error && (items.length === 0 || unreadCount === 0) ? (
-          <View style={{ alignItems: "center", paddingVertical: 32 }}>
-            <View style={styles.emptyIcon}>
-              <CheckCheck size={24} color={C.primary} strokeWidth={1.75} />
-            </View>
-            <Text style={{ fontSize: 14, fontWeight: "600", color: C.sub }}>All caught up!</Text>
-            <Text style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-              {items.length === 0 ? "No reminders right now." : "No new notifications right now."}
-            </Text>
+          <View style={styles.empty}>
+            <Piso size={72} mood="party" />
+            <Text style={styles.emptyTitle}>You're all caught up!</Text>
+            <Text style={styles.emptySub}>{items.length === 0 ? "No reminders right now." : "No new notifications right now."}</Text>
           </View>
         ) : null}
       </ScrollView>
@@ -187,19 +176,21 @@ export default function NotificationsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 20, flexDirection: "row", alignItems: "center", gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  headerTitle: { color: "#FFF", fontSize: 17, fontWeight: "700" },
-  headerSub: { color: "#BFDBFE", fontSize: 11, marginTop: 1 },
-  markAllBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
-  markAllText: { color: "#FFF", fontSize: 11, fontWeight: "700" },
+  header: { paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", alignItems: "center", gap: 12 },
+  backBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.surface, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 24, fontWeight: "800", color: C.text },
+  headerSub: { fontSize: 12, color: C.muted, marginTop: 1 },
+  markAllBtn: { backgroundColor: C.primaryLt, borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8 },
+  markAllText: { color: C.primary, fontSize: 12, fontWeight: "600" },
   errorText: { color: C.red, fontSize: 12 },
-  groupLabel: { fontSize: 11, fontWeight: "600", color: C.muted, letterSpacing: 0.6, marginBottom: 8, marginLeft: 2 },
-  notifCard: { borderRadius: 16, padding: 14, flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  iconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  unreadDot: { position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: 5, backgroundColor: C.primary, borderWidth: 2, borderColor: "#FFF" },
-  notifTitle: { fontSize: 13, flex: 1, lineHeight: 18 },
-  notifTime: { fontSize: 10, color: C.muted, marginTop: 2 },
-  notifDesc: { fontSize: 12, color: C.muted, lineHeight: 17, marginTop: 3 },
-  emptyIcon: { width: 56, height: 56, borderRadius: 16, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  groupLabel: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 10, marginLeft: 2 },
+  card: { borderRadius: 22, padding: 14, flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  iconWrap: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+  unreadDot: { position: "absolute", top: -1, right: -1, width: 11, height: 11, borderRadius: 6, backgroundColor: C.primary, borderWidth: 2, borderColor: "#FFF" },
+  title: { fontSize: 14, flex: 1, lineHeight: 20 },
+  time: { fontSize: 11, color: C.muted, marginTop: 3 },
+  desc: { fontSize: 13, color: C.sub, lineHeight: 19, marginTop: 4 },
+  empty: { alignItems: "center", paddingVertical: 36, gap: 6 },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: C.text, marginTop: 8 },
+  emptySub: { fontSize: 13, color: C.muted },
 });

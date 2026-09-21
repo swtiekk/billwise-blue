@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect } from "react";
 import { View, Pressable, ScrollView, RefreshControl, Alert, StyleSheet } from "react-native";
-import { Text } from "../../ui/Text";
 import { useFocusEffect } from "@react-navigation/native";
-import { ArrowLeft, ScanLine, PenLine, Pencil, Trash2, FileText } from "lucide-react-native";
+import { ScanLine, PenLine, Pencil, Trash2 } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
+import { Text } from "../../ui/Text";
 import { Btn } from "../../components/Atoms";
 import { CategoryIcon } from "../../components/CategoryIcon";
+import { Piso } from "../../components/Piso";
+import { ScreenHeader } from "../../components/ScreenHeader";
+import { BottomAction } from "../../components/BottomAction";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { useBills } from "../../hooks/useBills";
 import { BudgetBill, amountLabel } from "../../api/bills";
@@ -76,34 +79,30 @@ export default function EditBillsScreen({ navigation }: Props) {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <FocusedStatusBar style="dark" />
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ArrowLeft size={18} color={C.primaryDk} strokeWidth={2} />
-        </Pressable>
-        <View>
-          <Text style={styles.headerTitle}>Edit Budget Items</Text>
-          <Text style={styles.headerSub}>{bills.length} bill{bills.length === 1 ? "" : "s"}</Text>
-        </View>
-      </View>
+      <ScreenHeader
+        title="Edit budget items"
+        subtitle={`${bills.length} bill${bills.length === 1 ? "" : "s"}`}
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 16 }}
+        contentContainerStyle={{ padding: 16, gap: 16 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
       >
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <View style={{ flexDirection: "row", gap: 12 }}>
-          <Pressable onPress={() => navigation.navigate("ScanBill")} style={({ pressed }) => [styles.action, sh.sm, pressed && { opacity: 0.85 }]}>
+          <Pressable onPress={() => navigation.navigate("ScanBill")} style={({ pressed }) => [styles.action, pressed && { opacity: 0.85 }]}>
             <View style={styles.actionIcon}>
-              <ScanLine size={20} color={C.primary} strokeWidth={1.75} />
+              <ScanLine size={22} color={C.primary} strokeWidth={1.9} />
             </View>
-            <Text style={styles.actionLabel}>Scan Bill</Text>
+            <Text style={styles.actionLabel}>Scan a bill</Text>
           </Pressable>
-          <Pressable onPress={() => navigation.navigate("BillForm", { needsRange: true })} style={({ pressed }) => [styles.action, sh.sm, pressed && { opacity: 0.85 }]}>
+          <Pressable onPress={() => navigation.navigate("BillForm", { needsRange: true })} style={({ pressed }) => [styles.action, pressed && { opacity: 0.85 }]}>
             <View style={styles.actionIcon}>
-              <PenLine size={20} color={C.primary} strokeWidth={1.75} />
+              <PenLine size={22} color={C.primary} strokeWidth={1.9} />
             </View>
-            <Text style={styles.actionLabel}>Add Manually</Text>
+            <Text style={styles.actionLabel}>Add manually</Text>
           </Pressable>
         </View>
 
@@ -115,50 +114,49 @@ export default function EditBillsScreen({ navigation }: Props) {
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.name} numberOfLines={1}>{b.name}</Text>
-                <Text style={styles.sub} numberOfLines={1}>
-                  {b.categoryDesc} · Due day {b.dueDay ?? "—"} · Grace {b.graceDays}d{b.hasPenalty ? " · Penalty" : ""}
-                </Text>
+                <Text style={styles.sub} numberOfLines={1}>{b.categoryDesc}, due day {b.dueDay ?? "—"}</Text>
                 <Text style={styles.amount}>{amountLabel(b)}</Text>
               </View>
               <Pressable onPress={() => edit(b)} hitSlop={8} style={styles.iconBtn}>
-                <Pencil size={16} color={C.primary} strokeWidth={1.75} />
+                <Pencil size={17} color={C.primary} strokeWidth={1.9} />
               </Pressable>
               <Pressable onPress={() => confirmDelete(b)} hitSlop={8} style={[styles.iconBtn, { backgroundColor: C.redBg }]}>
-                <Trash2 size={16} color={C.red} strokeWidth={1.75} />
+                <Trash2 size={17} color={C.red} strokeWidth={1.9} />
               </Pressable>
             </View>
           ))}
           {bills.length === 0 && !loading ? (
-            <View style={{ alignItems: "center", paddingVertical: 36 }}>
-              <FileText size={36} color="#CBD5E1" strokeWidth={1.25} />
-              <Text style={{ fontSize: 13, fontWeight: "600", color: C.muted, marginTop: 8 }}>No bills yet</Text>
+            <View style={styles.empty}>
+              <Piso size={64} mood="happy" />
+              <Text style={styles.emptyTitle}>No bills yet</Text>
             </View>
           ) : null}
         </View>
 
-        <Btn onPress={() => navigation.reset({ index: 0, routes: [{ name: "Analysis" }] })}>Save Changes</Btn>
-        <Text style={styles.hint}>
-          Each change is saved as you make it. Save Changes re-runs the analysis and returns to Home.
-        </Text>
+        <Text style={styles.hint}>Each change is saved as you make it. Save changes re-runs the analysis and returns to Home.</Text>
       </ScrollView>
+
+      <BottomAction>
+        <View style={{ flex: 1 }}>
+          <Btn onPress={() => navigation.reset({ index: 0, routes: [{ name: "Analysis" }] })}>Save changes</Btn>
+        </View>
+      </BottomAction>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { backgroundColor: C.surface, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border, flexDirection: "row", alignItems: "center", gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "700", color: C.text },
-  headerSub: { fontSize: 11, color: C.muted, marginTop: 1 },
   errorText: { color: C.red, fontSize: 12 },
-  action: { flex: 1, backgroundColor: C.surface, borderRadius: 16, paddingVertical: 16, alignItems: "center", gap: 8 },
-  actionIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
-  actionLabel: { fontSize: 12, fontWeight: "700", color: C.primary },
-  card: { backgroundColor: C.surface, borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
-  iconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 13, fontWeight: "600", color: C.text },
-  sub: { fontSize: 11, color: C.muted, marginTop: 2 },
-  amount: { fontSize: 12, fontWeight: "700", color: C.sub, marginTop: 3 },
-  iconBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
-  hint: { fontSize: 11, color: C.muted, textAlign: "center", marginTop: -6 },
+  action: { flex: 1, backgroundColor: C.primaryLt, borderRadius: 24, paddingVertical: 18, alignItems: "center", gap: 10 },
+  actionIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#FFF", alignItems: "center", justifyContent: "center" },
+  actionLabel: { fontSize: 14, fontWeight: "700", color: C.primary },
+  card: { backgroundColor: C.surface, borderRadius: 22, padding: 12, flexDirection: "row", alignItems: "center", gap: 10 },
+  iconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
+  name: { fontSize: 14, fontWeight: "600", color: C.text },
+  sub: { fontSize: 12, color: C.muted, marginTop: 2 },
+  amount: { fontSize: 13, fontWeight: "700", color: C.sub, marginTop: 3 },
+  iconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
+  empty: { alignItems: "center", paddingVertical: 32, gap: 8 },
+  emptyTitle: { fontSize: 14, fontWeight: "600", color: C.sub },
+  hint: { fontSize: 12, color: C.muted, textAlign: "center", lineHeight: 18 },
 });

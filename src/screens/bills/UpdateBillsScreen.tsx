@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
-import { Text } from "../../ui/Text";
 import { useFocusEffect } from "@react-navigation/native";
-import { ArrowLeft, Info, ScanLine } from "lucide-react-native";
+import { ScanLine } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh, fmt } from "../../theme";
+import { Text } from "../../ui/Text";
 import { Field, Btn } from "../../components/Atoms";
+import { Piso } from "../../components/Piso";
+import { ScreenHeader } from "../../components/ScreenHeader";
+import { BottomAction } from "../../components/BottomAction";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { useBills } from "../../hooks/useBills";
 import { BudgetBill, amountLabel } from "../../api/bills";
@@ -35,7 +38,7 @@ export default function UpdateBillsScreen({ navigation }: Props) {
     }, [refresh])
   );
 
-  // "Scan New Bill" sends the scanned amount back here for that one bill.
+  // "Scan a new bill" sends the scanned amount back here for that one bill.
   useEffect(() => subscribeAmount((id, amount) => setValues((v) => ({ ...v, [id]: String(amount) }))), []);
 
   const ranked = useMemo(() => sortByPriority(bills), [bills]);
@@ -65,26 +68,18 @@ export default function UpdateBillsScreen({ navigation }: Props) {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <FocusedStatusBar style="dark" />
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ArrowLeft size={18} color={C.primaryDk} strokeWidth={2} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Update This Period's Bills</Text>
-          <Text style={styles.headerSub}>{monthYear(periodISO)}</Text>
-        </View>
-      </View>
+      <ScreenHeader title="Update this period's bills" subtitle={monthYear(periodISO)} onBack={() => navigation.goBack()} />
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 16 }}
+        contentContainerStyle={{ padding: 16, gap: 14 }}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
       >
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        {/* progress tracker */}
+        {/* progress */}
         <View>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
             <Text style={styles.progressLabel}>Progress</Text>
             <Text style={styles.progressValue}>{updatedCount} of {ranked.length} updated</Text>
           </View>
@@ -94,7 +89,7 @@ export default function UpdateBillsScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.banner}>
-          <Info size={16} color={C.primary} strokeWidth={1.75} />
+          <Piso size={38} mood="happy" />
           <Text style={styles.bannerText}>
             Enter this period's amount for each bill, or scan the new bill. Leave a bill blank to keep its current amount.
           </Text>
@@ -105,7 +100,7 @@ export default function UpdateBillsScreen({ navigation }: Props) {
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.name} numberOfLines={1}>{b.name}</Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
                   <View style={styles.catTag}>
                     <Text style={styles.catText}>{b.categoryDesc}</Text>
                   </View>
@@ -120,11 +115,11 @@ export default function UpdateBillsScreen({ navigation }: Props) {
                 onPress={() => navigation.navigate("ScanBill", { forBillId: b.id })}
                 style={({ pressed }) => [styles.scanBtn, pressed && { opacity: 0.85 }]}
               >
-                <ScanLine size={13} color={C.primary} strokeWidth={2} />
-                <Text style={styles.scanText}>Scan New Bill</Text>
+                <ScanLine size={15} color={C.primary} strokeWidth={2} />
+                <Text style={styles.scanText}>Scan</Text>
               </Pressable>
             </View>
-            <View style={{ marginTop: 12 }}>
+            <View style={{ marginTop: 14 }}>
               <Field
                 label="This period's amount (₱)"
                 value={values[b.id] ?? ""}
@@ -137,13 +132,13 @@ export default function UpdateBillsScreen({ navigation }: Props) {
         ))}
 
         {ranked.length === 0 && !loading ? (
-          <Text style={styles.empty}>You have no bills yet. Add them in Edit Budget Items.</Text>
+          <Text style={styles.empty}>You have no bills yet. Add them in Edit budget items.</Text>
         ) : null}
 
         {/* period summary */}
         {ranked.length > 0 ? (
           <View style={[styles.summary, sh.sm]}>
-            <Text style={styles.summaryTitle}>Period Summary</Text>
+            <Text style={styles.summaryTitle}>Period summary</Text>
             {ranked.map((b) => (
               <View key={b.id} style={styles.summaryRow}>
                 <Text style={styles.summaryName} numberOfLines={1}>{b.name}</Text>
@@ -161,40 +156,40 @@ export default function UpdateBillsScreen({ navigation }: Props) {
         ) : null}
 
         {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
-
-        <Btn onPress={submit}>{saving ? "Updating…" : "Update and Re-run Analysis"}</Btn>
       </ScrollView>
+
+      <BottomAction>
+        <View style={{ flex: 1 }}>
+          <Btn onPress={submit}>{saving ? "Updating…" : "Update and re-run analysis"}</Btn>
+        </View>
+      </BottomAction>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { backgroundColor: C.surface, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border, flexDirection: "row", alignItems: "center", gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "700", color: C.text },
-  headerSub: { fontSize: 11, color: C.muted, marginTop: 1 },
-  errorText: { color: C.red, fontSize: 12 },
-  progressLabel: { fontSize: 11, fontWeight: "600", color: C.muted, letterSpacing: 0.5 },
-  progressValue: { fontSize: 12, fontWeight: "700", color: C.primary },
-  track: { height: 8, backgroundColor: "#E2E8F0", borderRadius: 4, overflow: "hidden" },
-  fill: { height: "100%", backgroundColor: C.primary, borderRadius: 4 },
-  banner: { flexDirection: "row", gap: 10, backgroundColor: C.primaryLt, borderRadius: 12, padding: 12 },
-  bannerText: { flex: 1, fontSize: 12, color: C.sub, lineHeight: 17 },
-  card: { backgroundColor: C.surface, borderRadius: 16, padding: 14 },
-  name: { fontSize: 14, fontWeight: "700", color: C.text },
-  catTag: { backgroundColor: C.primaryLt, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 1 },
-  catText: { fontSize: 10, fontWeight: "600", color: C.primary },
-  lastChip: { backgroundColor: "#F1F5F9", borderRadius: 99, paddingHorizontal: 8, paddingVertical: 1 },
-  lastText: { fontSize: 10, fontWeight: "600", color: C.sub },
-  scanBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: C.primaryLt, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-  scanText: { fontSize: 11, fontWeight: "700", color: C.primary },
-  empty: { fontSize: 12, color: C.muted, textAlign: "center", paddingVertical: 24 },
-  summary: { backgroundColor: C.surface, borderRadius: 16, padding: 16, gap: 8 },
-  summaryTitle: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 4 },
+  errorText: { color: C.red, fontSize: 13 },
+  progressLabel: { fontSize: 13, fontWeight: "600", color: C.sub },
+  progressValue: { fontSize: 13, fontWeight: "700", color: C.primary },
+  track: { height: 10, backgroundColor: "#D3E1FA", borderRadius: 5, overflow: "hidden" },
+  fill: { height: "100%", backgroundColor: C.primary, borderRadius: 5 },
+  banner: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.primaryLt, borderRadius: 22, padding: 14 },
+  bannerText: { flex: 1, fontSize: 13, color: C.sub, lineHeight: 19 },
+  card: { backgroundColor: C.surface, borderRadius: 24, padding: 16 },
+  name: { fontSize: 15, fontWeight: "700", color: C.text },
+  catTag: { backgroundColor: C.primaryLt, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 1 },
+  catText: { fontSize: 11, fontWeight: "600", color: C.primary },
+  lastChip: { backgroundColor: "#EAF0FB", borderRadius: 99, paddingHorizontal: 9, paddingVertical: 1 },
+  lastText: { fontSize: 11, fontWeight: "600", color: C.sub },
+  scanBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.primaryLt, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 8 },
+  scanText: { fontSize: 12, fontWeight: "700", color: C.primary },
+  empty: { fontSize: 13, color: C.muted, textAlign: "center", paddingVertical: 24 },
+  summary: { backgroundColor: C.surface, borderRadius: 24, padding: 16, gap: 9 },
+  summaryTitle: { fontSize: 15, fontWeight: "700", color: C.text, marginBottom: 2 },
   summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
-  summaryName: { flex: 1, fontSize: 12, color: C.sub },
-  summaryAmount: { fontSize: 12, fontWeight: "600", color: C.text },
-  divider: { height: 1, backgroundColor: C.border, marginVertical: 4 },
-  totalLabel: { fontSize: 13, fontWeight: "700", color: C.text },
-  totalValue: { fontSize: 15, fontWeight: "700", color: C.primaryDk },
+  summaryName: { flex: 1, fontSize: 13, color: C.sub },
+  summaryAmount: { fontSize: 13, fontWeight: "600", color: C.text },
+  divider: { height: 1, backgroundColor: "#E6EEFB", marginVertical: 3 },
+  totalLabel: { fontSize: 14, fontWeight: "700", color: C.text },
+  totalValue: { fontSize: 18, fontWeight: "800", color: C.primary },
 });

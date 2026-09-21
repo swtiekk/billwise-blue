@@ -1,12 +1,12 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { View, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
-import { Text } from "../../ui/Text";
 import { useFocusEffect } from "@react-navigation/native";
-import { AlertTriangle, FileText } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh, fmt } from "../../theme";
+import { Text } from "../../ui/Text";
 import { TabBar } from "../../components/TabBar";
-import { BillDetailCard } from "../../components/BillDetailCard";
+import { BudgetRow } from "../../components/BudgetRow";
+import { Piso } from "../../components/Piso";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { useBills } from "../../hooks/useBills";
 import { useRisk } from "../../hooks/useRisk";
@@ -19,16 +19,20 @@ import type { RootStackParamList } from "../../navigation/routes";
 type Props = NativeStackScreenProps<RootStackParamList, "Budget">;
 type Filter = "all" | "Non-deferrable" | "Deferrable";
 
+// Plain words on the tabs; the row details still show your flow's terms (Non-deferrable / Deferrable).
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "Non-deferrable", label: "Non-deferrable" },
-  { key: "Deferrable", label: "Deferrable" },
+  { key: "all", label: "All bills" },
+  { key: "Non-deferrable", label: "Must pay" },
+  { key: "Deferrable", label: "Can wait" },
 ];
 
-const HALVES: { key: Half; label: string }[] = [
+const HALVES: { key: Half | null; label: string }[] = [
+  { key: null, label: "Whole month" },
   { key: "1st Half", label: "1st – 15th" },
   { key: "2nd Half", label: "16th – 30th" },
 ];
+
+const SEGMENT_COLORS = ["#1F6FFF", "#5B9BFF", "#B9D6FF", "#DCEBFF"];
 
 export default function BudgetScreen(_props: Props) {
   const goTab = useTabNav();
@@ -55,8 +59,24 @@ export default function BudgetScreen(_props: Props) {
     ({ bill }) => (filter === "all" || bill.classification === filter) && (!half || halfOf(bill) === half)
   );
 
+  // "Where it goes": the biggest categories, the rest grouped as Other
+  const goes = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const b of bills) totals.set(b.categoryDesc, (totals.get(b.categoryDesc) ?? 0) + b.amountMax);
+    const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+    const rest = sorted.slice(3).reduce((sum, [, v]) => sum + v, 0);
+    const parts: [string, number][] = rest > 0 ? [...sorted.slice(0, 3), ["Other", rest]] : sorted.slice(0, 3);
+    const total = parts.reduce((sum, [, v]) => sum + v, 0);
+    return parts.map(([name, value], i) => ({
+      name,
+      value,
+      pct: total ? Math.round((value / total) * 100) : 0,
+      color: SEGMENT_COLORS[i],
+    }));
+  }, [bills]);
+
   const totals = sumBills(bills);
-  const remainingMin = risk ? Number(risk.remaining_budget_min) : null;
+  const remaining = risk ? Number(risk.remaining_budget_min) : null;
   const periodISO = risk?.next_payday ?? bills.find((b) => b.dueDate)?.dueDate ?? toISO(new Date());
 
   const showDeferral = !!risk && risk.label !== "STABLE";
@@ -66,110 +86,116 @@ export default function BudgetScreen(_props: Props) {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <FocusedStatusBar style="dark" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Bill Priority Breakdown</Text>
-        <View style={styles.periodChip}>
-          <Text style={styles.periodText}>{monthYear(periodISO)}</Text>
-        </View>
-      </View>
-
       <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 16 }}
+        contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshAll} />}
       >
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-        {/* Filter tabs */}
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {FILTERS.map((f) => {
-            const on = filter === f.key;
-            return (
-              <Pressable
-                key={f.key}
-                onPress={() => setFilter(f.key)}
-                style={[styles.filterChip, on ? { backgroundColor: C.primary } : { backgroundColor: "#F1F5F9" }, on && sh.btn]}
-              >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: on ? "#FFF" : C.sub }}>{f.label}</Text>
-              </Pressable>
-            );
-          })}
+        <View style={styles.top}>
+          <Text style={styles.title}>Budget</Text>
+          <View style={styles.monthChip}>
+            <Text style={styles.monthText}>{monthYear(periodISO)}</Text>
+          </View>
         </View>
 
-        {/* Income period split: tap a column to show only that half */}
-        <View style={{ flexDirection: "row", gap: 12 }}>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        {/* where the money goes */}
+        {goes.length > 0 ? (
+          <View style={[styles.card, sh.sm]}>
+            <Text style={styles.cardTitle}>Where it goes</Text>
+            <View style={styles.bar}>
+              {goes.map((g) => (
+                <View key={g.name} style={{ flex: Math.max(g.value, 1), backgroundColor: g.color }} />
+              ))}
+            </View>
+            <View style={styles.legend}>
+              {goes.map((g) => (
+                <View key={g.name} style={styles.legendItem}>
+                  <View style={[styles.dot, { backgroundColor: g.color }]} />
+                  <Text style={styles.legendText} numberOfLines={1}>{g.name} {g.pct}%</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {/* income period split */}
+        <View style={styles.segment}>
           {HALVES.map((h) => {
-            const list = bills.filter((b) => halfOf(b) === h.key);
+            const list = h.key ? bills.filter((b) => halfOf(b) === h.key) : bills;
             const t = sumBills(list);
             const on = half === h.key;
             return (
-              <Pressable
-                key={h.key}
-                onPress={() => setHalf(on ? null : h.key)}
-                style={[styles.splitCard, sh.sm, on && styles.splitCardOn]}
-              >
-                <Text style={styles.splitLabel}>{h.label}</Text>
-                <Text style={styles.splitValue}>{t.count === 0 ? "—" : rangeText(t.min, t.max)}</Text>
-                <Text style={styles.splitSub}>{t.count} bill{t.count === 1 ? "" : "s"}</Text>
+              <Pressable key={h.label} onPress={() => setHalf(h.key)} style={[styles.segBtn, on && styles.segBtnOn]}>
+                <Text style={[styles.segLabel, on && { color: "#FFF" }]}>{h.label}</Text>
+                <Text style={[styles.segAmount, on && { color: "#D3E4FF" }]}>{t.count ? fmt(t.max) : "—"}</Text>
               </Pressable>
             );
           })}
         </View>
 
-        {/* Deferrable bills suggestion (only when At Risk / Critical) */}
+        {/* filter */}
+        <View style={styles.filters}>
+          {FILTERS.map((f) => {
+            const on = filter === f.key;
+            return (
+              <Pressable key={f.key} onPress={() => setFilter(f.key)} style={[styles.filterChip, on && styles.filterChipOn]}>
+                <Text style={[styles.filterText, on && { color: "#FFF" }]}>{f.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* deferral suggestion (only when at risk / critical) */}
         {showDeferral ? (
           <View style={styles.deferCard}>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <AlertTriangle size={18} color={C.amber} strokeWidth={2} style={{ marginTop: 1 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.deferTitle}>Deferrable Bills Suggestion</Text>
-                <Text style={styles.deferBody}>
-                  {deferrable.length > 0
-                    ? "Your budget is tight. These bills can be postponed to free up cash:"
-                    : "Your budget is tight and none of your bills can be deferred. Consider reducing daily expenses."}
-                </Text>
-              </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Piso size={40} mood="worried" />
+              <Text style={styles.deferTitle}>
+                {deferrable.length > 0 ? "Your budget is tight. These can wait:" : "Your budget is tight, and no bill can wait."}
+              </Text>
             </View>
             {deferrable.map(({ bill }) => (
               <View key={bill.id} style={styles.deferRow}>
                 <Text style={styles.deferName} numberOfLines={1}>{bill.name}</Text>
-                <Text style={styles.deferAmount}>{amountLabel(bill)}</Text>
                 <Text style={styles.deferDue}>{formatShort(bill.dueDate)}</Text>
+                <Text style={styles.deferAmount}>{amountLabel(bill)}</Text>
               </View>
             ))}
             {deferrable.length > 0 ? (
-              <Text style={styles.deferFreed}>Could free up {rangeText(freed.min, freed.max)}</Text>
-            ) : null}
+              <Text style={styles.deferFreed}>Moving them could free up {rangeText(freed.min, freed.max)}.</Text>
+            ) : (
+              <Text style={styles.deferFreed}>Try lowering your daily food or transport costs.</Text>
+            )}
           </View>
         ) : null}
 
-        {/* Full bill list */}
+        {/* bills */}
         <View style={{ gap: 10 }}>
           {visible.map(({ bill, rank }) => (
-            <BillDetailCard key={bill.id} bill={bill} rank={rank} />
+            <BudgetRow key={bill.id} bill={bill} rank={rank} />
           ))}
           {visible.length === 0 && !loading ? (
-            <View style={{ alignItems: "center", paddingVertical: 40 }}>
-              <FileText size={36} color="#CBD5E1" strokeWidth={1.25} />
-              <Text style={{ fontSize: 13, fontWeight: "600", color: C.muted, marginTop: 8 }}>
-                {bills.length === 0 ? "No bills yet" : "No bills match this filter"}
-              </Text>
+            <View style={styles.empty}>
+              <Piso size={64} mood="happy" />
+              <Text style={styles.emptyTitle}>{bills.length === 0 ? "No bills yet" : "No bills match this filter"}</Text>
             </View>
           ) : null}
         </View>
       </ScrollView>
 
-      <View style={[styles.bottomBar, sh.md]}>
-        <View>
-          <Text style={styles.barLabel}>Total Allocated</Text>
-          <Text style={styles.barValue}>{bills.length ? fmt(totals.max) : "—"}</Text>
-          <Text style={styles.barSub}>up to</Text>
-        </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Text style={styles.barLabel}>Estimated Remaining</Text>
-          <Text style={[styles.barValue, remainingMin != null && remainingMin < 0 && { color: C.red }]}>
-            {remainingMin == null ? "—" : fmt(remainingMin)}
-          </Text>
-          <Text style={styles.barSub}>at least</Text>
+      <View style={styles.summaryWrap}>
+        <View style={styles.summary}>
+          <View>
+            <Text style={styles.sumLabel}>Bills, up to</Text>
+            <Text style={styles.sumValue}>{bills.length ? fmt(totals.max) : "—"}</Text>
+          </View>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={styles.sumLabel}>Left, at least</Text>
+            <Text style={[styles.sumValue, remaining != null && remaining < 0 && { color: "#FFD3DA" }]}>
+              {remaining == null ? "—" : fmt(remaining)}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -179,27 +205,39 @@ export default function BudgetScreen(_props: Props) {
 }
 
 const styles = StyleSheet.create({
-  header: { backgroundColor: C.surface, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border },
-  headerTitle: { fontSize: 20, fontWeight: "700", color: C.text },
-  periodChip: { alignSelf: "flex-start", backgroundColor: C.primaryLt, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3, marginTop: 6 },
-  periodText: { fontSize: 11, fontWeight: "600", color: C.primary },
+  scroll: { paddingHorizontal: 16, paddingTop: 56, paddingBottom: 14, gap: 14 },
+  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  title: { fontSize: 28, fontWeight: "800", color: C.text },
+  monthChip: { backgroundColor: C.primaryLt, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 },
+  monthText: { fontSize: 12, fontWeight: "600", color: C.primary },
   errorText: { color: C.red, fontSize: 12 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 99 },
-  splitCard: { flex: 1, backgroundColor: C.surface, borderRadius: 16, padding: 14, borderWidth: 1.5, borderColor: "transparent" },
-  splitCardOn: { borderColor: C.primary, backgroundColor: C.primaryLt },
-  splitLabel: { fontSize: 12, fontWeight: "500", color: C.muted },
-  splitValue: { fontSize: 17, fontWeight: "800", color: C.text, marginTop: 4 },
-  splitSub: { fontSize: 11, color: C.muted, marginTop: 2 },
-  deferCard: { backgroundColor: C.amberBg, borderColor: "#FDE68A", borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
-  deferTitle: { fontSize: 13, fontWeight: "700", color: C.amber },
-  deferBody: { fontSize: 11, color: C.sub, marginTop: 2, lineHeight: 16 },
-  deferRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
-  deferName: { flex: 1, fontSize: 12, fontWeight: "600", color: C.text },
-  deferAmount: { fontSize: 12, fontWeight: "700", color: C.text },
-  deferDue: { fontSize: 10, color: C.muted, width: 44, textAlign: "right" },
-  deferFreed: { fontSize: 12, fontWeight: "700", color: C.amber },
-  bottomBar: { backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border, paddingHorizontal: 20, paddingVertical: 12, flexDirection: "row", justifyContent: "space-between" },
-  barLabel: { fontSize: 11, color: C.muted, fontWeight: "500" },
-  barValue: { fontSize: 22, fontWeight: "800", color: C.text, marginTop: 1 },
-  barSub: { fontSize: 10, color: C.muted },
+  card: { backgroundColor: C.surface, borderRadius: 24, padding: 16 },
+  cardTitle: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 12 },
+  bar: { flexDirection: "row", height: 16, borderRadius: 8, overflow: "hidden", gap: 2 },
+  legend: { flexDirection: "row", flexWrap: "wrap", columnGap: 14, rowGap: 6, marginTop: 12 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 6, maxWidth: "100%" },
+  dot: { width: 9, height: 9, borderRadius: 5 },
+  legendText: { fontSize: 12, color: C.sub, flexShrink: 1 },
+  segment: { flexDirection: "row", backgroundColor: C.primaryLt, borderRadius: 20, padding: 4, gap: 4 },
+  segBtn: { flex: 1, borderRadius: 16, paddingVertical: 8, alignItems: "center" },
+  segBtnOn: { backgroundColor: C.primary },
+  segLabel: { fontSize: 12, fontWeight: "600", color: C.sub },
+  segAmount: { fontSize: 12, color: C.muted, marginTop: 1 },
+  filters: { flexDirection: "row", gap: 8 },
+  filterChip: { backgroundColor: C.surface, borderRadius: 99, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1.5, borderColor: "#D3E1FA" },
+  filterChipOn: { backgroundColor: C.text, borderColor: C.text },
+  filterText: { fontSize: 12, fontWeight: "600", color: C.sub },
+  deferCard: { backgroundColor: C.amberBg, borderRadius: 24, padding: 14, gap: 8 },
+  deferTitle: { flex: 1, fontSize: 13, fontWeight: "600", color: "#7A3606", lineHeight: 19 },
+  deferRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9 },
+  deferName: { flex: 1, fontSize: 13, fontWeight: "600", color: C.text },
+  deferDue: { fontSize: 11, color: C.muted },
+  deferAmount: { fontSize: 13, fontWeight: "700", color: C.text },
+  deferFreed: { fontSize: 12, fontWeight: "600", color: "#7A3606" },
+  empty: { alignItems: "center", paddingVertical: 32, gap: 8 },
+  emptyTitle: { fontSize: 14, fontWeight: "600", color: C.sub },
+  summaryWrap: { paddingHorizontal: 16, paddingTop: 4, backgroundColor: C.bg },
+  summary: { backgroundColor: C.text, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 12, flexDirection: "row", justifyContent: "space-between" },
+  sumLabel: { fontSize: 11, color: "#A9C0EE" },
+  sumValue: { fontSize: 20, fontWeight: "800", color: "#FFF", marginTop: 1 },
 });

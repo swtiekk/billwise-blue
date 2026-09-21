@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from "react";
 import { View, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Bell, CalendarDays, CheckCircle2, AlertTriangle, Star } from "lucide-react-native";
+import { Bell, CalendarDays, CheckCircle2, Star } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh, fmt } from "../../theme";
 import { GOLD } from "../../brand";
@@ -18,16 +18,10 @@ import { useSession } from "../../context/SessionContext";
 import { useTabNav } from "../../navigation/useTabNav";
 import { scheduleBillReminders } from "../../notifications/reminders";
 import { formatShort } from "../../utils/dates";
+import { STATUS } from "../../utils/statusStyle";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
-
-// How each risk level looks on the status tile (label wording follows your flow).
-const STATUS = {
-  STABLE: { label: "Stable", note: "You're covered", bg: C.greenBg, fg: "#0B6B53", Icon: CheckCircle2 },
-  "AT RISK": { label: "At risk", note: "Watch your spending", bg: C.amberBg, fg: "#9A4308", Icon: AlertTriangle },
-  CRITICAL: { label: "Critical", note: "Act on this soon", bg: C.redBg, fg: "#A3182F", Icon: AlertTriangle },
-} as const;
 
 export default function HomeScreen({ navigation }: Props) {
   const { user } = useSession();

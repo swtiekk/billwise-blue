@@ -1,13 +1,16 @@
 import React, { useRef, useState } from "react";
 import { View, Pressable, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
-import { Text } from "../../ui/Text";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { ArrowLeft, Images } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh, fmt } from "../../theme";
+import { Text } from "../../ui/Text";
 import { Field, Sel, Btn, Toggle } from "../../components/Atoms";
 import { DateField } from "../../components/DateField";
+import { Piso } from "../../components/Piso";
+import { ScreenHeader } from "../../components/ScreenHeader";
+import { BottomAction } from "../../components/BottomAction";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { BILL_CATEGORIES } from "../../constants/options";
 import { guessCategoryLabel, scanBill } from "../../api/bills";
@@ -20,7 +23,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "ScanBill">;
 type Step = "camera" | "processing" | "results";
 
 export default function ScanBillScreen({ navigation, route }: Props) {
-  // "Scan New Bill" on Update This Period's Bills only needs the amount for one existing bill.
+  // "Scan" on Update this period's bills only needs the amount for one existing bill.
   const forBillId = route.params?.forBillId;
   const amountOnly = !!forBillId;
 
@@ -108,9 +111,10 @@ export default function ScanBillScreen({ navigation, route }: Props) {
   // ---------------- STEP 2: processing ----------------
   if (step === "processing") {
     return (
-      <View style={styles.dark}>
+      <View style={styles.processing}>
         <FocusedStatusBar style="light" />
-        <ActivityIndicator size="large" color="#FFF" />
+        <Piso size={84} mood="happy" />
+        <ActivityIndicator size="small" color="#FFF" style={{ marginTop: 22 }} />
         <Text style={styles.processingText}>Reading your bill...</Text>
       </View>
     );
@@ -121,92 +125,95 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     return (
       <View style={{ flex: 1, backgroundColor: C.bg }}>
         <FocusedStatusBar style="dark" />
-        <View style={styles.lightHeader}>
-          <Pressable onPress={() => setStep("camera")} style={styles.lightBack}>
-            <ArrowLeft size={18} color={C.primaryDk} strokeWidth={2} />
-          </Pressable>
-          <Text style={styles.lightTitle}>{amountOnly ? "New Amount" : "Scanned Bill"}</Text>
-        </View>
+        <ScreenHeader
+          title={amountOnly ? "New amount" : "Scanned bill"}
+          subtitle="Check what I found"
+          onBack={() => setStep("camera")}
+        />
 
         <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
           {amountOnly ? (
             <>
               <View style={[styles.summaryCard, sh.sm, { marginBottom: 16 }]}>
                 <Row label="Found on bill" value={name} />
-                <Row label="Due Date" value={formatLong(dueDate)} last />
+                <Row label="Due date" value={formatLong(dueDate)} last />
               </View>
               <Field label="Amount (₱)" value={amount} onChange={setAmount} placeholder="0.00" keyboardType="numeric" />
             </>
           ) : editing ? (
             <>
-              <Field label="Bill Name" value={name} onChange={setName} placeholder="e.g. Meralco" />
+              <Field label="Bill name" value={name} onChange={setName} placeholder="e.g. Meralco" />
               <View style={{ marginBottom: 16 }}>
                 <Sel label="Category" value={category} onChange={setCategory} options={BILL_CATEGORIES} />
               </View>
               <Field label="Amount (₱)" value={amount} onChange={setAmount} placeholder="0.00" keyboardType="numeric" />
-              <DateField label="Due Date" value={dueDate} onChange={setDueDate} />
-              <Field label="Grace Period (days)" value={grace} onChange={(v) => setGrace(v.replace(/\D/g, ""))} keyboardType="numeric" />
+              <DateField label="Due date" value={dueDate} onChange={setDueDate} />
+              <Field label="Grace period (days)" value={grace} onChange={(v) => setGrace(v.replace(/\D/g, ""))} keyboardType="numeric" />
               <View style={[styles.toggleCard, sh.sm]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.toggleLabel}>Has Penalty</Text>
-                  <Text style={styles.toggleSub}>A fee applies if paid late</Text>
+                  <Text style={styles.toggleLabel}>Has a penalty</Text>
+                  <Text style={styles.toggleSub}>A fee applies if it's paid late</Text>
                 </View>
                 <Toggle on={penalty} onToggle={() => setPenalty((v) => !v)} />
               </View>
             </>
           ) : (
             <View style={[styles.summaryCard, sh.sm]}>
-              <Row label="Bill Name" value={name} />
+              <Row label="Bill name" value={name} />
               <Row label="Category" value={category} />
               <Row label="Amount" value={fmt(Number(amount) || 0)} />
-              <Row label="Due Date" value={formatLong(dueDate)} />
-              <Row label="Grace Period" value={`${grace || 0} days`} />
-              <Row label="Has Penalty" value={penalty ? "Yes" : "No"} last />
+              <Row label="Due date" value={formatLong(dueDate)} />
+              <Row label="Grace period" value={`${grace || 0} days`} />
+              <Row label="Has a penalty" value={penalty ? "Yes" : "No"} last />
             </View>
           )}
 
           {formError ? <Text style={styles.error}>{formError}</Text> : null}
-
-          <View style={{ marginTop: 16, gap: 10 }}>
-            <Btn onPress={confirm}>{editing || amountOnly ? "Save" : "Confirm"}</Btn>
-            {!editing && !amountOnly ? (
-              <Btn variant="outline" onPress={() => setEditing(true)}>Edit Details</Btn>
-            ) : null}
-          </View>
         </ScrollView>
+
+        <BottomAction>
+          {!editing && !amountOnly ? (
+            <View style={{ flex: 1 }}>
+              <Btn variant="outline" onPress={() => setEditing(true)}>Edit details</Btn>
+            </View>
+          ) : null}
+          <View style={{ flex: 1 }}>
+            <Btn onPress={confirm}>{editing || amountOnly ? "Save" : "Confirm"}</Btn>
+          </View>
+        </BottomAction>
       </View>
     );
   }
 
   // ---------------- STEP 1: camera ----------------
-  if (!permission) return <View style={styles.dark} />;
+  if (!permission) return <View style={styles.processing} />;
 
   if (!permission.granted) {
     return (
-      <View style={[styles.dark, { padding: 32, gap: 16 }]}>
+      <View style={[styles.processing, { padding: 32, gap: 14 }]}>
         <FocusedStatusBar style="light" />
-        <Text style={styles.permissionText}>Camera access is needed to scan bills.</Text>
-        <Btn onPress={requestPermission}>Grant Camera Permission</Btn>
-        <Btn variant="outline" onPress={pickFromGallery}>Upload from Gallery</Btn>
+        <Piso size={72} mood="worried" />
+        <Text style={styles.permissionText}>I need the camera to scan your bills.</Text>
+        <View style={{ width: "100%", gap: 10 }}>
+          <Btn onPress={requestPermission}>Allow camera</Btn>
+          <Btn variant="outline" onPress={pickFromGallery}>Choose from gallery instead</Btn>
+        </View>
         <Pressable onPress={() => navigation.goBack()} style={{ marginTop: 4 }}>
-          <Text style={{ color: "rgba(255,255,255,0.6)" }}>Cancel</Text>
+          <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 14 }}>Cancel</Text>
         </Pressable>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0F172A" }}>
+    <View style={{ flex: 1, backgroundColor: "#0B1A45" }}>
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
 
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn}>
-          <ArrowLeft size={18} color="#FFF" strokeWidth={2} />
+          <ArrowLeft size={20} color="#FFF" strokeWidth={2} />
         </Pressable>
-        <Text style={styles.headerTitle}>{amountOnly ? "Scan New Bill" : "Scan Bill"}</Text>
-        <Pressable onPress={() => navigation.goBack()} style={{ marginLeft: "auto" }}>
-          <Text style={styles.cancel}>Cancel</Text>
-        </Pressable>
+        <Text style={styles.headerTitle}>{amountOnly ? "Scan a new bill" : "Scan a bill"}</Text>
       </View>
 
       <View style={styles.viewfinder} pointerEvents="none">
@@ -215,28 +222,28 @@ export default function ScanBillScreen({ navigation, route }: Props) {
             key={pos}
             style={[
               styles.corner,
-              pos.includes("t") ? { top: 0, borderTopWidth: 2 } : { bottom: 0, borderBottomWidth: 2 },
-              pos.includes("l") ? { left: 0, borderLeftWidth: 2 } : { right: 0, borderRightWidth: 2 },
+              pos.includes("t") ? { top: 0, borderTopWidth: 3 } : { bottom: 0, borderBottomWidth: 3 },
+              pos.includes("l") ? { left: 0, borderLeftWidth: 3 } : { right: 0, borderRightWidth: 3 },
             ]}
           />
         ))}
       </View>
 
       <View style={styles.hintWrap} pointerEvents="none">
-        <Text style={styles.hintTitle}>{scanError ?? "Align bill within the frame"}</Text>
-        <Text style={styles.hintSub}>Works with Meralco, Maynilad, Globe & more</Text>
+        <Text style={styles.hintTitle}>{scanError ?? "Align the bill within the frame"}</Text>
+        <Text style={styles.hintSub}>Works with Meralco, Maynilad, Globe and more</Text>
       </View>
 
       <View style={styles.controls}>
         <Pressable onPress={pickFromGallery} style={styles.sideBtn}>
-          <Images size={20} color="#FFF" strokeWidth={1.75} />
+          <Images size={22} color="#FFF" strokeWidth={1.8} />
         </Pressable>
         <Pressable onPress={capture} style={styles.shutter}>
           <View style={styles.shutterInner} />
         </Pressable>
-        <View style={{ width: 48 }} />
+        <View style={{ width: 52 }} />
       </View>
-      <Text style={styles.galleryLabel}>Upload from Gallery</Text>
+      <Text style={styles.galleryLabel}>From gallery</Text>
     </View>
   );
 }
@@ -251,34 +258,30 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
 }
 
 const styles = StyleSheet.create({
-  dark: { flex: 1, backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center" },
-  processingText: { color: "#FFF", fontSize: 14, fontWeight: "600", marginTop: 16 },
-  permissionText: { color: "#FFF", fontSize: 14, textAlign: "center", marginBottom: 8 },
-  header: { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 16, flexDirection: "row", alignItems: "center", gap: 12, zIndex: 10 },
-  headerBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  headerTitle: { color: "#FFF", fontSize: 16, fontWeight: "700" },
-  cancel: { color: "#FFF", fontSize: 13, fontWeight: "600" },
-  viewfinder: { position: "absolute", top: "32%", left: "14%", right: "14%", height: 200 },
-  corner: { position: "absolute", width: 32, height: 32, borderColor: "#60A5FA" },
-  hintWrap: { position: "absolute", bottom: 150, left: 20, right: 20, alignItems: "center" },
-  hintTitle: { color: "#FFF", fontSize: 13, fontWeight: "600", textAlign: "center" },
-  hintSub: { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 4 },
-  controls: { position: "absolute", bottom: 44, left: 0, right: 0, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 32 },
-  sideBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  shutter: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: "#FFF", backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  shutterInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#FFF" },
-  galleryLabel: { position: "absolute", bottom: 20, left: 24, color: "rgba(255,255,255,0.6)", fontSize: 10 },
+  processing: { flex: 1, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
+  processingText: { color: "#FFF", fontSize: 15, fontWeight: "600", marginTop: 12 },
+  permissionText: { color: "#FFF", fontSize: 16, fontWeight: "600", textAlign: "center", marginBottom: 6 },
+  header: { paddingTop: 56, paddingHorizontal: 16, paddingBottom: 16, flexDirection: "row", alignItems: "center", gap: 12, zIndex: 10 },
+  headerBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" },
+  headerTitle: { color: "#FFF", fontSize: 18, fontWeight: "700" },
+  viewfinder: { position: "absolute", top: "30%", left: "12%", right: "12%", height: 210 },
+  corner: { position: "absolute", width: 36, height: 36, borderColor: "#FFF", borderRadius: 6 },
+  hintWrap: { position: "absolute", bottom: 160, left: 20, right: 20, alignItems: "center" },
+  hintTitle: { color: "#FFF", fontSize: 15, fontWeight: "600", textAlign: "center" },
+  hintSub: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 4 },
+  controls: { position: "absolute", bottom: 48, left: 0, right: 0, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 32 },
+  sideBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" },
+  shutter: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: "#FFF", alignItems: "center", justifyContent: "center" },
+  shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: "#FFF" },
+  galleryLabel: { position: "absolute", bottom: 26, left: 22, color: "rgba(255,255,255,0.75)", fontSize: 11 },
 
-  lightHeader: { backgroundColor: C.surface, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: C.border, flexDirection: "row", alignItems: "center", gap: 12 },
-  lightBack: { width: 36, height: 36, borderRadius: 12, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
-  lightTitle: { fontSize: 16, fontWeight: "700", color: C.text },
-  summaryCard: { backgroundColor: C.surface, borderRadius: 16, paddingHorizontal: 16 },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16, paddingVertical: 14 },
-  rowDivider: { borderBottomWidth: 1, borderBottomColor: C.border },
-  rowLabel: { fontSize: 12, fontWeight: "500", color: C.muted },
-  rowValue: { flex: 1, textAlign: "right", fontSize: 14, fontWeight: "600", color: C.text },
-  toggleCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  toggleLabel: { fontSize: 13, fontWeight: "600", color: C.sub },
-  toggleSub: { fontSize: 11, color: C.muted, marginTop: 1 },
-  error: { color: C.red, fontSize: 12, marginTop: 12 },
+  summaryCard: { backgroundColor: C.surface, borderRadius: 24, paddingHorizontal: 18 },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16, paddingVertical: 15 },
+  rowDivider: { borderBottomWidth: 1, borderBottomColor: "#E6EEFB" },
+  rowLabel: { fontSize: 13, color: C.muted },
+  rowValue: { flex: 1, textAlign: "right", fontSize: 15, fontWeight: "600", color: C.text },
+  toggleCard: { backgroundColor: C.surface, borderRadius: 22, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  toggleLabel: { fontSize: 14, fontWeight: "600", color: C.text },
+  toggleSub: { fontSize: 12, color: C.muted, marginTop: 2 },
+  error: { color: C.red, fontSize: 13, marginTop: 12 },
 });
