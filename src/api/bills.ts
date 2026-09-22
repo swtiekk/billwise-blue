@@ -1,5 +1,5 @@
 import { api } from "./client";
-import type { ApiBill, ScanResponse } from "./types";
+import type { ApiBill, ScanResponse, RuleApplied } from "./types";
 import type { BillCategory, BillStatus } from "../data";
 import type { BillInput } from "../navigation/billBus";
 import { fmt } from "../theme";
@@ -12,8 +12,8 @@ import { daysUntil } from "../utils/dates";
 /** Icon key used by <CategoryIcon>. */
 export function categoryFromText(text?: string | null): BillCategory {
   const t = (text ?? "").toLowerCase();
-  if (/electric|meralco/.test(t)) return "electricity";
-  if (/water|maynilad/.test(t)) return "water";
+  if (/electric|cepalco/.test(t)) return "electricity";
+  if (/water|water district/.test(t)) return "water";
   if (/internet|wifi|wi-fi|broadband|fiber|converge/.test(t)) return "internet";
   if (/\brent\b|lease/.test(t)) return "rent";
   if (/insur|philhealth/.test(t)) return "insurance";
@@ -54,6 +54,7 @@ export interface BudgetBill {
   hasPenalty: boolean;
   priority: "High" | "Medium" | "Low" | null;
   classification: "Non-deferrable" | "Deferrable" | null;
+  ruleApplied: RuleApplied; // ← NEW: which Chapter III rule classified this bill
   periodHalf: string | null;
   status: BillStatus;
 }
@@ -93,6 +94,7 @@ export function mapBill(b: ApiBill): BudgetBill {
     hasPenalty: !!b.penalty_classification,
     priority: b.priority_level,
     classification: b.budget_classification,
+    ruleApplied: b.rule_applied ?? null, // ← NEW
     periodHalf: b.period_half,
     status: deriveStatus(b),
   };

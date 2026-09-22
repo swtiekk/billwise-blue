@@ -50,13 +50,26 @@ export default function HomeScreen({ navigation }: Props) {
   const priorityBills = bills.filter((b) => b.priority === "High");
   const alertCount = bills.filter((b) => b.status === "overdue" || b.status === "due-soon").length;
 
-  const remaining = risk ? Number(risk.remaining_budget_min) : null;
+  // Use the whole remaining-budget RANGE, not just the minimum.
+  const remainingMin = risk ? Number(risk.remaining_budget_min) : null;
+  const remainingMax = risk ? Number(risk.remaining_budget_max) : null;
+  // Only show a range if max and min actually differ (avoids "43,800 – 43,800").
+  const hasRange =
+    remainingMin != null &&
+    remainingMax != null &&
+    Math.abs(remainingMax - remainingMin) > 0.5;
+
   const income = risk ? Number(risk.combined_income) : 0;
-  const share = remaining != null && income > 0 ? Math.max(0, Math.min(1, remaining / income)) : 0;
+  // Use the range midpoint for the tank fill level — gives a fair "visual" estimate.
+  const share =
+    remainingMin != null && remainingMax != null && income > 0
+      ? Math.max(0, Math.min(1, ((remainingMin + remainingMax) / 2) / income))
+      : 0;
   const days = risk ? risk.days_until_next_payday : null;
 
   // numbers count up when they arrive
-  const remainingShown = Math.round(useCountUp(remaining));
+  const remainingMinShown = Math.round(useCountUp(remainingMin));
+  const remainingMaxShown = Math.round(useCountUp(remainingMax));
   const daysShown = Math.round(useCountUp(days, 700));
 
   const status = risk ? STATUS[risk.label] : null;
@@ -87,12 +100,27 @@ export default function HomeScreen({ navigation }: Props) {
         <MoneyTank level={share} height={156}>
           <View>
             <Text style={styles.tankLabel}>Money left after bills</Text>
-            <Text style={[styles.tankAmount, remaining != null && remaining < 0 && { color: "#FFD3DA" }]} numberOfLines={1} adjustsFontSizeToFit>
-              {remaining == null ? "—" : fmt(remainingShown)}
+            <Text
+              style={[
+                styles.tankAmount,
+                remainingMin != null && remainingMin < 0 && { color: "#FFD3DA" },
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {remainingMin == null
+                ? "—"
+                : hasRange
+                  ? `${fmt(remainingMinShown)} – ${fmt(remainingMaxShown)}`
+                  : fmt(remainingMinShown)}
             </Text>
           </View>
           <Text style={styles.tankFoot}>
-            {remaining == null ? "Checking your budget…" : `${Math.round(share * 100)}% of your income`}
+            {remainingMin == null
+              ? "Checking your budget…"
+              : hasRange
+                ? `${Math.round(share * 100)}% of your income (estimated range)`
+                : `${Math.round(share * 100)}% of your income`}
           </Text>
         </MoneyTank>
 
@@ -151,7 +179,7 @@ const styles = StyleSheet.create({
   badge: { position: "absolute", top: -3, right: -3, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: C.red, alignItems: "center", justifyContent: "center" },
   badgeText: { color: "#FFF", fontSize: 10, fontWeight: "700" },
   tankLabel: { color: "#D3E4FF", fontSize: 12 },
-  tankAmount: { color: "#FFF", fontSize: 30, fontWeight: "800", marginTop: 2 },
+  tankAmount: { color: "#FFF", fontSize: 26, fontWeight: "800", marginTop: 2 },
   tankFoot: { color: "#FFF", fontSize: 12, fontWeight: "600" },
   tiles: { flexDirection: "row", gap: 10 },
   tile: { flex: 1, borderRadius: 24, padding: 14, gap: 4 },
