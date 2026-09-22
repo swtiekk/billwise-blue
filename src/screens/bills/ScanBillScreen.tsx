@@ -1,10 +1,11 @@
-import React, { useRef, useState } from "react";
-import { View, Pressable, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, Pressable, ScrollView, ActivityIndicator, Animated, Easing, Dimensions, StyleSheet } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
-import { ArrowLeft, Images } from "lucide-react-native";
+import { ArrowLeft, Image as ImageIcon, ScanLine } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh, fmt } from "../../theme";
+import { GOLD } from "../../brand";
 import { Text } from "../../ui/Text";
 import { Field, Sel, Btn, Toggle } from "../../components/Atoms";
 import { DateField } from "../../components/DateField";
@@ -17,7 +18,17 @@ import { guessCategoryLabel, scanBill } from "../../api/bills";
 import { errorMessage } from "../../api/client";
 import { publishAmount, publishBill } from "../../navigation/billBus";
 import { formatLong } from "../../utils/dates";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 import type { RootStackParamList } from "../../navigation/routes";
+
+// The frame is sized to the screen so it reads as a real viewfinder, not a small box floating on it.
+// Bills are usually taller than wide, so the frame is a portrait rectangle.
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+const FRAME_W = SCREEN_W - 56;
+const FRAME_H = Math.min(FRAME_W * 1.32, SCREEN_H * 0.52);
+const FRAME_TOP = SCREEN_H * 0.2;
+const FRAME_LEFT = (SCREEN_W - FRAME_W) / 2;
+const CORNER = 34;
 
 type Props = NativeStackScreenProps<RootStackParamList, "ScanBill">;
 type Step = "camera" | "processing" | "results";
@@ -42,6 +53,21 @@ export default function ScanBillScreen({ navigation, route }: Props) {
   const [grace, setGrace] = useState("0");
   const [penalty, setPenalty] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // The gold line that sweeps the frame while step === "camera" (off if the phone prefers reduced motion).
+  const reduced = useReducedMotion();
+  const sweep = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (step !== "camera" || reduced) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sweep, { toValue: 1, duration: 1900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(sweep, { toValue: 0, duration: 1900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [step, reduced, sweep]);
 
   const processImage = async (uri: string) => {
     setStep("processing");
@@ -205,45 +231,71 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     );
   }
 
+  const sweepY = sweep.interpolate({ inputRange: [0, 1], outputRange: [10, FRAME_H - 10] });
+
   return (
     <View style={{ flex: 1, backgroundColor: "#0B1A45" }}>
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+
+      {/* dims everything outside the frame, so the frame itself reads as a real viewfinder */}
+      <View pointerEvents="none">
+        <View style={[styles.mask, { top: 0, left: 0, right: 0, height: FRAME_TOP }]} />
+        <View style={[styles.mask, { top: FRAME_TOP + FRAME_H, left: 0, right: 0, bottom: 0 }]} />
+        <View style={[styles.mask, { top: FRAME_TOP, left: 0, width: FRAME_LEFT, height: FRAME_H }]} />
+        <View style={[styles.mask, { top: FRAME_TOP, right: 0, width: FRAME_LEFT, height: FRAME_H }]} />
+      </View>
 
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <ArrowLeft size={20} color="#FFF" strokeWidth={2} />
         </Pressable>
-        <Text style={styles.headerTitle}>{amountOnly ? "Scan a new bill" : "Scan a bill"}</Text>
+        <View>
+          <Text style={styles.headerTitle}>{amountOnly ? "Scan a new bill" : "Scan a bill"}</Text>
+          <Text style={styles.headerSub}>I'll read the amount, due date and merchant</Text>
+        </View>
       </View>
 
-      <View style={styles.viewfinder} pointerEvents="none">
+      <View style={[styles.viewfinder, { top: FRAME_TOP, left: FRAME_LEFT, width: FRAME_W, height: FRAME_H }]} pointerEvents="none">
+        <View style={styles.frameOutline} />
         {["tl", "tr", "bl", "br"].map((pos) => (
           <View
             key={pos}
             style={[
               styles.corner,
-              pos.includes("t") ? { top: 0, borderTopWidth: 3 } : { bottom: 0, borderBottomWidth: 3 },
-              pos.includes("l") ? { left: 0, borderLeftWidth: 3 } : { right: 0, borderRightWidth: 3 },
+              pos.includes("t") ? { top: -3, borderTopWidth: 4 } : { bottom: -3, borderBottomWidth: 4 },
+              pos.includes("l") ? { left: -3, borderLeftWidth: 4 } : { right: -3, borderRightWidth: 4 },
             ]}
           />
         ))}
+        {!reduced ? (
+          <Animated.View style={[styles.sweepLine, { transform: [{ translateY: sweepY }] }]}>
+            <View style={styles.sweepGlow} />
+          </Animated.View>
+        ) : null}
       </View>
 
-      <View style={styles.hintWrap} pointerEvents="none">
-        <Text style={styles.hintTitle}>{scanError ?? "Align the bill within the frame"}</Text>
+      <View style={[styles.hintWrap, { top: FRAME_TOP + FRAME_H + 20 }]} pointerEvents="none">
+        <View style={styles.hintPill}>
+          <ScanLine size={15} color={scanError ? "#FFB4BF" : GOLD.light} strokeWidth={2} />
+          <Text style={[styles.hintTitle, scanError ? { color: "#FFB4BF" } : null]}>
+            {scanError ?? "Align the bill within the frame"}
+          </Text>
+        </View>
         <Text style={styles.hintSub}>Works with Meralco, Maynilad, Globe and more</Text>
       </View>
 
       <View style={styles.controls}>
         <Pressable onPress={pickFromGallery} style={styles.sideBtn}>
-          <Images size={22} color="#FFF" strokeWidth={1.8} />
+          <ImageIcon size={20} color="#FFF" strokeWidth={1.8} />
+          <Text style={styles.sideBtnLabel}>Gallery</Text>
         </Pressable>
-        <Pressable onPress={capture} style={styles.shutter}>
+
+        <Pressable onPress={capture} style={({ pressed }) => [styles.shutter, pressed && { transform: [{ scale: 0.96 }] }]}>
           <View style={styles.shutterInner} />
         </Pressable>
-        <View style={{ width: 52 }} />
+
+        <View style={{ width: 68 }} />
       </View>
-      <Text style={styles.galleryLabel}>From gallery</Text>
     </View>
   );
 }
@@ -261,19 +313,25 @@ const styles = StyleSheet.create({
   processing: { flex: 1, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
   processingText: { color: "#FFF", fontSize: 15, fontWeight: "600", marginTop: 12 },
   permissionText: { color: "#FFF", fontSize: 16, fontWeight: "600", textAlign: "center", marginBottom: 6 },
-  header: { paddingTop: 56, paddingHorizontal: 16, paddingBottom: 16, flexDirection: "row", alignItems: "center", gap: 12, zIndex: 10 },
-  headerBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" },
+  header: { position: "absolute", top: 0, left: 0, right: 0, paddingTop: 56, paddingHorizontal: 16, paddingBottom: 16, flexDirection: "row", alignItems: "center", gap: 12, zIndex: 10 },
+  headerBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   headerTitle: { color: "#FFF", fontSize: 18, fontWeight: "700" },
-  viewfinder: { position: "absolute", top: "30%", left: "12%", right: "12%", height: 210 },
-  corner: { position: "absolute", width: 36, height: 36, borderColor: "#FFF", borderRadius: 6 },
-  hintWrap: { position: "absolute", bottom: 160, left: 20, right: 20, alignItems: "center" },
-  hintTitle: { color: "#FFF", fontSize: 15, fontWeight: "600", textAlign: "center" },
-  hintSub: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 4 },
-  controls: { position: "absolute", bottom: 48, left: 0, right: 0, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 32 },
-  sideBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" },
-  shutter: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: "#FFF", alignItems: "center", justifyContent: "center" },
-  shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: "#FFF" },
-  galleryLabel: { position: "absolute", bottom: 26, left: 22, color: "rgba(255,255,255,0.75)", fontSize: 11 },
+  headerSub: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 1 },
+  mask: { position: "absolute", backgroundColor: "rgba(11,26,69,0.62)" },
+  viewfinder: { position: "absolute" },
+  frameOutline: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.35)" },
+  corner: { position: "absolute", width: CORNER, height: CORNER, borderColor: GOLD.light, borderRadius: 8 },
+  sweepLine: { position: "absolute", left: 6, right: 6, height: 2 },
+  sweepGlow: { height: 2, borderRadius: 1, backgroundColor: GOLD.light, shadowColor: GOLD.light, shadowOpacity: 0.9, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
+  hintWrap: { position: "absolute", left: 20, right: 20, alignItems: "center" },
+  hintPill: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "rgba(11,26,69,0.7)", borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8 },
+  hintTitle: { color: "#FFF", fontSize: 14, fontWeight: "600" },
+  hintSub: { color: "rgba(255,255,255,0.65)", fontSize: 12, marginTop: 8 },
+  controls: { position: "absolute", bottom: 44, left: 0, right: 0, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 28 },
+  sideBtn: { width: 68, height: 68, borderRadius: 34, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center", gap: 3 },
+  sideBtnLabel: { color: "#FFF", fontSize: 10, fontWeight: "600" },
+  shutter: { width: 82, height: 82, borderRadius: 41, borderWidth: 4, borderColor: GOLD.light, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.12)" },
+  shutterInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: "#FFF" },
 
   summaryCard: { backgroundColor: C.surface, borderRadius: 24, paddingHorizontal: 18 },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16, paddingVertical: 15 },
