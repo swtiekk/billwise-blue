@@ -294,7 +294,7 @@ export default function ScanBillScreen({ navigation, route }: Props) {
             {scanError ?? "Align the bill within the frame"}
           </Text>
         </View>
-        <Text style={styles.hintSub}>Works with Meralco, Maynilad, Globe and more</Text>
+        <Text style={styles.hintSub}>Works with Cepalco, Water District, Globe and more</Text>
       </View>
 
       <View style={styles.controls}>
