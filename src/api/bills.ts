@@ -1,4 +1,6 @@
-import { api } from "./client";
+import * as FileSystem from "expo-file-system/legacy";
+import { BASE_URL } from "./client";
+import { getAccessToken } from "./tokenStorage";
 import type { ApiBill, ScanResponse, RuleApplied } from "./types";
 import type { BillCategory, BillStatus } from "../data";
 import type { BillInput } from "../navigation/billBus";
@@ -45,16 +47,16 @@ export interface BudgetBill {
   name: string;
   category: BillCategory; // icon key
   categoryDesc: string;
-  amount: number | null; // last actual amount (set by Update This Period's Bills or a scan)
+  amount: number | null;
   amountMin: number;
   amountMax: number;
-  dueDate: string | null; // YYYY-MM-DD
+  dueDate: string | null;
   dueDay: number | null;
   graceDays: number;
   hasPenalty: boolean;
   priority: "High" | "Medium" | "Low" | null;
   classification: "Non-deferrable" | "Deferrable" | null;
-  ruleApplied: RuleApplied; // ← NEW: which Chapter III rule classified this bill
+  ruleApplied: RuleApplied;
   periodHalf: string | null;
   status: BillStatus;
 }
@@ -73,7 +75,7 @@ function deriveStatus(b: ApiBill): BillStatus {
   if (!b.actual_due_date) return "upcoming";
   const d = daysUntil(b.actual_due_date);
   if (d < 0) return "overdue";
-  if (d <= 3) return "due-soon"; // same window the backend uses for notifications
+  if (d <= 3) return "due-soon";
   return "upcoming";
 }
 
@@ -94,7 +96,7 @@ export function mapBill(b: ApiBill): BudgetBill {
     hasPenalty: !!b.penalty_classification,
     priority: b.priority_level,
     classification: b.budget_classification,
-    ruleApplied: b.rule_applied ?? null, // ← NEW
+    ruleApplied: b.rule_applied ?? null,
     periodHalf: b.period_half,
     status: deriveStatus(b),
   };
@@ -106,10 +108,20 @@ export function amountLabel(b: Pick<BudgetBill, "amountMin" | "amountMax">): str
 }
 
 export async function fetchBills(): Promise<BudgetBill[]> {
-  const rows = await api.get<ApiBill[]>("/api/bills/");
+  const rows = await apiGetBills();
   return [...rows]
     .sort((a, b) => (a.actual_due_date ?? "9999-12-31").localeCompare(b.actual_due_date ?? "9999-12-31"))
     .map(mapBill);
+}
+
+// Small wrapper so we don't have to import `api` from client here (avoids a circular import
+// after we moved the scan upload to expo-file-system).
+async function apiGetBills(): Promise<ApiBill[]> {
+  const res = await fetch(`${BASE_URL}/api/bills/`, {
+    headers: { Authorization: `Bearer ${await getAccessToken()}` },
+  });
+  if (!res.ok) throw new Error(`Failed to load bills (${res.status})`);
+  return res.json();
 }
 
 // ---------------------------------------------------------------
@@ -121,24 +133,71 @@ function guessMimeType(filename: string): string {
   if (/\.pdf$/i.test(filename)) return "application/pdf";
   if (/\.png$/i.test(filename)) return "image/png";
   if (/\.heic$/i.test(filename)) return "image/heic";
+  if (/\.webp$/i.test(filename)) return "image/webp";
   return "image/jpeg";
 }
 
 /**
- * @param uri file uri from the camera, image gallery, or document picker (photo or PDF receipt)
- * @param name original file name, if known (from the document picker) — used to keep the .pdf extension
- * @param mimeType original mime type, if known (from the document picker)
+ * Upload a bill image (or PDF) to the backend OCR endpoint.
+ *
+ * Uses `expo-file-system/legacy`'s `uploadAsync` instead of RN's `fetch` + FormData.
+ * RN's FormData is unreliable for file uploads on the new Hermes + JSI architecture
+ * (throws "Unsupported FormDataPart implementation") and often mangles the multipart
+ * body. `uploadAsync` builds the multipart request natively, which is why it's the
+ * recommended approach for Expo.
  */
-export async function scanBill(uri: string, name?: string | null, mimeType?: string | null): Promise<ScanResponse> {
+export async function scanBill(
+  uri: string,
+  name?: string | null,
+  mimeType?: string | null
+): Promise<ScanResponse> {
   const filename = name || uri.split("/").pop() || "bill.jpg";
   const type = mimeType || guessMimeType(filename);
 
-  const form = new FormData();
-  // React Native's FormData accepts { uri, name, type } for files
-  form.append("image", { uri, name: filename, type } as any);
+  const token = await getAccessToken();
 
-  // Tesseract can be slow on the first request, so allow more time than usual.
-  return api.post<ScanResponse>("/api/bills/scan/", form, { timeoutMs: 60000 });
+  console.log("[scanBill] uri:", uri);
+  console.log("[scanBill] filename:", filename);
+  console.log("[scanBill] mimeType:", type);
+  console.log("[scanBill] url:", `${BASE_URL}/api/bills/scan/`);
+  console.log("[scanBill] uploadAsync available:", typeof FileSystem.uploadAsync);
+
+  if (typeof FileSystem.uploadAsync !== "function") {
+    throw new Error(
+      "expo-file-system/legacy does not export uploadAsync. " +
+        "Make sure `expo-file-system` is installed and Metro was restarted with --clear."
+    );
+  }
+
+  // Use the numeric value (1 = MULTIPART). Enum names changed across SDKs; the
+  // numeric value is stable and always accepted by the underlying native call.
+  const result = await FileSystem.uploadAsync(
+    `${BASE_URL}/api/bills/scan/`,
+    uri,
+    {
+      httpMethod: "POST",
+      uploadType: 1, // FileSystemUploadType.MULTIPART
+      fieldName: "image",
+      mimeType: type,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    } as any
+  );
+
+  console.log("[scanBill] status:", result.status);
+  console.log("[scanBill] body:", result.body);
+
+  if (result.status < 200 || result.status >= 300) {
+    let message = `Scan failed (${result.status})`;
+    try {
+      const parsed = JSON.parse(result.body);
+      message = parsed.error || parsed.detail || message;
+    } catch {
+      // body wasn't JSON — keep the status-code message
+    }
+    throw new Error(message);
+  }
+
+  return JSON.parse(result.body) as ScanResponse;
 }
 
 export type { BillInput };

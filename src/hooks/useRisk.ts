@@ -9,14 +9,26 @@ export function useRisk() {
 
   const refresh = useCallback(async () => {
     try {
-      setRisk(await getRisk());
+      const data = await getRisk();
+      setRisk(data);
       setError(null);
     } catch (e) {
+      // Silent on cancellations — the user probably navigated away.
+      if (isCanceled(e)) return;
       setError(errorMessage(e));
     }
   }, []);
 
   return { risk, error, refresh };
+}
+
+/** True if the error looks like an aborted/canceled fetch. */
+function isCanceled(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const anyE = e as any;
+  if (anyE.name === "CanceledError" || anyE.name === "AbortError") return true;
+  const msg = String(anyE.message ?? "").toLowerCase();
+  return msg.includes("cancel") || msg.includes("abort");
 }
 
 /**

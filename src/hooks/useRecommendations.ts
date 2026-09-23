@@ -9,12 +9,25 @@ export function useRecommendations() {
 
   const refresh = useCallback(async () => {
     try {
-      setRecs(await getRecommendations());
+      const data = await getRecommendations();
+      setRecs(data);
       setError(null);
     } catch (e) {
+      // A canceled request just means the user navigated away before it finished.
+      // Don't surface that as a user-facing error.
+      if (isCanceled(e)) return;
       setError(errorMessage(e));
     }
   }, []);
 
   return { recs, error, refresh };
+}
+
+/** True if the error looks like an aborted/canceled fetch. */
+function isCanceled(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const anyE = e as any;
+  if (anyE.name === "CanceledError" || anyE.name === "AbortError") return true;
+  const msg = String(anyE.message ?? "").toLowerCase();
+  return msg.includes("cancel") || msg.includes("abort");
 }
