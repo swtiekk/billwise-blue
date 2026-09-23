@@ -116,9 +116,22 @@ export async function fetchBills(): Promise<BudgetBill[]> {
 // Scanner
 // ---------------------------------------------------------------
 
-export async function scanBill(uri: string): Promise<ScanResponse> {
-  const filename = uri.split("/").pop() || "bill.jpg";
-  const type = /\.png$/i.test(filename) ? "image/png" : "image/jpeg";
+/** Guess a MIME type from a file name when the picker doesn't supply one. */
+function guessMimeType(filename: string): string {
+  if (/\.pdf$/i.test(filename)) return "application/pdf";
+  if (/\.png$/i.test(filename)) return "image/png";
+  if (/\.heic$/i.test(filename)) return "image/heic";
+  return "image/jpeg";
+}
+
+/**
+ * @param uri file uri from the camera, image gallery, or document picker (photo or PDF receipt)
+ * @param name original file name, if known (from the document picker) — used to keep the .pdf extension
+ * @param mimeType original mime type, if known (from the document picker)
+ */
+export async function scanBill(uri: string, name?: string | null, mimeType?: string | null): Promise<ScanResponse> {
+  const filename = name || uri.split("/").pop() || "bill.jpg";
+  const type = mimeType || guessMimeType(filename);
 
   const form = new FormData();
   // React Native's FormData accepts { uri, name, type } for files

@@ -21,6 +21,12 @@ import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "EditBills">;
 
+const PRIORITY_STYLE = {
+  High: { bg: C.redBg, text: C.red },
+  Medium: { bg: C.amberBg, text: C.amber },
+  Low: { bg: "#F1F5F9", text: C.sub },
+} as const;
+
 export default function EditBillsScreen({ navigation }: Props) {
   const { bills, loading, error, refresh } = useBills();
 
@@ -116,6 +122,20 @@ export default function EditBillsScreen({ navigation }: Props) {
                 <Text style={styles.name} numberOfLines={1}>{b.name}</Text>
                 <Text style={styles.sub} numberOfLines={1}>{b.categoryDesc}, due day {b.dueDay ?? "—"}</Text>
                 <Text style={styles.amount}>{amountLabel(b)}</Text>
+                <View style={styles.badgeRow}>
+                  {b.priority ? (
+                    <View style={[styles.badge, { backgroundColor: PRIORITY_STYLE[b.priority].bg }]}>
+                      <Text style={[styles.badgeText, { color: PRIORITY_STYLE[b.priority].text }]}>{b.priority} priority</Text>
+                    </View>
+                  ) : null}
+                  {b.classification ? (
+                    <View style={[styles.badge, { backgroundColor: b.classification === "Non-deferrable" ? C.indigoBg : C.greenBg }]}>
+                      <Text style={[styles.badgeText, { color: b.classification === "Non-deferrable" ? C.indigo : C.green }]}>
+                        {b.classification === "Non-deferrable" ? "Must pay" : "Can wait"}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
               <Pressable onPress={() => edit(b)} hitSlop={8} style={styles.iconBtn}>
                 <Pencil size={17} color={C.primary} strokeWidth={1.9} />
@@ -155,6 +175,9 @@ const styles = StyleSheet.create({
   name: { fontSize: 14, fontWeight: "600", color: C.text },
   sub: { fontSize: 12, color: C.muted, marginTop: 2 },
   amount: { fontSize: 13, fontWeight: "700", color: C.sub, marginTop: 3 },
+  badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
+  badge: { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeText: { fontSize: 10, fontWeight: "600" },
   iconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
   empty: { alignItems: "center", paddingVertical: 32, gap: 8 },
   emptyTitle: { fontSize: 14, fontWeight: "600", color: C.sub },
