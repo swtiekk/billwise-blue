@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Pressable, ScrollView, ActivityIndicator, Animated, Easing, Dimensions, StyleSheet } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
-import { ArrowLeft, Image as ImageIcon, ScanLine } from "lucide-react-native";
+import * as DocumentPicker from "expo-document-picker";
+import { ArrowLeft, Image as ImageIcon, FileText, ScanLine } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh, fmt } from "../../theme";
 import { GOLD } from "../../brand";
@@ -69,11 +70,11 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     return () => loop.stop();
   }, [step, reduced, sweep]);
 
-  const processImage = async (uri: string) => {
+  const processImage = async (uri: string, name?: string | null, mimeType?: string | null) => {
     setStep("processing");
     setScanError(null);
     try {
-      const { extracted } = await scanBill(uri);
+      const { extracted } = await scanBill(uri, name, mimeType);
       setName(extracted.merchant ?? "");
       setCategory(guessCategoryLabel(extracted.merchant));
       setAmount(extracted.amount != null ? String(extracted.amount) : "");
@@ -103,6 +104,17 @@ export default function ScanBillScreen({ navigation, route }: Props) {
   const pickFromGallery = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7 });
     if (!result.canceled && result.assets[0]?.uri) await processImage(result.assets[0].uri);
+  };
+
+  // A receipt saved as a document rather than a photo — PDF, or an image from Files/Drive/etc.
+  const pickDocument = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["application/pdf", "image/*"],
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return;
+    const file = result.assets?.[0];
+    if (file?.uri) await processImage(file.uri, file.name, file.mimeType);
   };
 
   const confirm = () => {
@@ -223,6 +235,7 @@ export default function ScanBillScreen({ navigation, route }: Props) {
         <View style={{ width: "100%", gap: 10 }}>
           <Btn onPress={requestPermission}>Allow camera</Btn>
           <Btn variant="outline" onPress={pickFromGallery}>Choose from gallery instead</Btn>
+          <Btn variant="outline" onPress={pickDocument}>Upload a file or PDF instead</Btn>
         </View>
         <Pressable onPress={() => navigation.goBack()} style={{ marginTop: 4 }}>
           <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 14 }}>Cancel</Text>
@@ -294,7 +307,10 @@ export default function ScanBillScreen({ navigation, route }: Props) {
           <View style={styles.shutterInner} />
         </Pressable>
 
-        <View style={{ width: 68 }} />
+        <Pressable onPress={pickDocument} style={styles.sideBtn}>
+          <FileText size={20} color="#FFF" strokeWidth={1.8} />
+          <Text style={styles.sideBtnLabel}>File / PDF</Text>
+        </Pressable>
       </View>
     </View>
   );

@@ -17,10 +17,18 @@ export function dueText(iso: string | null): { text: string; color: string } {
   return { text: `in ${d} days`, color: C.muted };
 }
 
+const PRIORITY_STYLE = {
+  High: { bg: C.redBg, text: C.red },
+  Medium: { bg: C.amberBg, text: C.amber },
+  Low: { bg: "#F1F5F9", text: C.muted },
+} as const;
+
 /** A bill as a soft pill row: category icon, name, when it's due, amount. */
 export function BillPill({ bill, onPress }: { bill: BudgetBill; onPress?: () => void }) {
   const due = dueText(bill.dueDate);
   const mustPay = bill.classification === "Non-deferrable";
+  const canWait = bill.classification === "Deferrable";
+  const pr = bill.priority ? PRIORITY_STYLE[bill.priority] : null;
 
   return (
     <Pressable
@@ -34,9 +42,19 @@ export function BillPill({ bill, onPress }: { bill: BudgetBill; onPress?: () => 
         <Text style={styles.name} numberOfLines={1}>{bill.name}</Text>
         <View style={styles.subRow}>
           <Text style={[styles.due, { color: due.color }]}>{due.text}</Text>
+          {pr ? (
+            <View style={[styles.chip, { backgroundColor: pr.bg }]}>
+              <Text style={[styles.chipText, { color: pr.text }]}>{bill.priority}</Text>
+            </View>
+          ) : null}
           {mustPay ? (
             <View style={styles.chip}>
               <Text style={styles.chipText}>Must pay</Text>
+            </View>
+          ) : null}
+          {canWait ? (
+            <View style={[styles.chip, { backgroundColor: C.greenBg }]}>
+              <Text style={[styles.chipText, { color: C.green }]}>Can wait</Text>
             </View>
           ) : null}
         </View>
