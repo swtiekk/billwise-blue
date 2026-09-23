@@ -14,6 +14,12 @@ const CHIP = {
   Deferrable: { label: "Can wait", bg: C.primaryLt, fg: C.primary },
 } as const;
 
+const PRIORITY_CHIP = {
+  High: { bg: C.redBg, fg: C.red },
+  Medium: { bg: C.amberBg, fg: C.amber },
+  Low: { bg: "#EAF0FB", fg: C.muted },
+} as const;
+
 /**
  * One bill on the Budget tab. Collapsed: rank, name, "Must pay" / "Can wait", when it's due, amount.
  * Tap to open the details from your flow (grace period, penalty, priority, type, and why).
@@ -47,6 +53,11 @@ export function BudgetRow({ bill, rank }: { bill: BudgetBill; rank: number }) {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.name} numberOfLines={1}>{bill.name}</Text>
           <View style={styles.subRow}>
+            {bill.priority ? (
+              <View style={[styles.chip, { backgroundColor: PRIORITY_CHIP[bill.priority].bg }]}>
+                <Text style={[styles.chipText, { color: PRIORITY_CHIP[bill.priority].fg }]}>{bill.priority}</Text>
+              </View>
+            ) : null}
             <View style={[styles.chip, { backgroundColor: chip.bg }]}>
               <Text style={[styles.chipText, { color: chip.fg }]}>{chip.label}</Text>
             </View>
