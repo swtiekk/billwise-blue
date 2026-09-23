@@ -33,6 +33,16 @@ export interface Household {
   setup_completed: boolean;
 }
 
+// Rule engine output — which of the 5 Chapter III rules classified a bill.
+export type RuleApplied =
+  | "Rule 1"
+  | "Rule 2"
+  | "Rule 3"
+  | "Rule 4a"
+  | "Rule 4b"
+  | "Fallback"
+  | null;
+
 // BudgetAllocationSerializer
 export interface ApiBill {
   budget_allocation_id: number;
@@ -40,10 +50,12 @@ export interface ApiBill {
   item: number;
   item_desc?: string;
   category_desc?: string; // omitted by DRF when the item has no category
+
   // from BudgetItem (added to the serializer in the Phase 1 patch):
   due_day?: number;
   grace_period_days?: number;
   penalty_classification?: boolean;
+
   amount: string | null;
   actual_due_date: string | null; // YYYY-MM-DD
   is_confirmed: boolean;
@@ -52,9 +64,14 @@ export interface ApiBill {
   budget_end_date: string;
   budget_classification: "Non-deferrable" | "Deferrable" | null;
   priority_level: "High" | "Medium" | "Low" | null;
+
+  // Rule engine output — which rule fired and why
+  rule_applied?: RuleApplied;
+
   period_half: string | null;
   bill_reminder: boolean;
   is_paid?: boolean; // only if you applied the optional is_paid migration
+  paid_date?: string | null;
 }
 
 export type RiskLabel = "STABLE" | "AT RISK" | "CRITICAL";
@@ -82,6 +99,7 @@ export interface DeferrableBill {
   category_desc: string | null;
   priority_level: string | null;
   budget_classification: string | null;
+  rule_applied?: RuleApplied; // ← added so the frontend can show the reason
   amount_range: string;
   actual_due_date: string | null;
 }

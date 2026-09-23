@@ -38,20 +38,38 @@ export const rangeText = (min: number, max: number) => (min === max ? fmt(min) :
 
 // ---------------------------------------------------------------- explanations
 
-/** One-line reason for a bill's classification (mirrors the rule engine on the backend). */
+/**
+ * One-line reason for a bill's classification.
+ * Mirrors the exact rule (Rule 1, Rule 2, ...) applied by the backend engine.
+ * Each rule produces a distinct message, especially Rule 1 vs Rule 2 which
+ * differ only by grace period.
+ */
 export function explainBill(b: BudgetBill): string {
-  if (b.classification === "Non-deferrable") {
-    return "Essential bill with a late penalty and little or no grace period. It can't be postponed, so pay it first.";
-  }
-  if (b.classification === "Deferrable") {
-    if (b.priority === "Low") {
+  const grace = b.graceDays;
+
+  switch (b.ruleApplied) {
+    case "Rule 1":
+      return "Essential bill with a late penalty and no grace period. It can't be postponed, so pay it first.";
+
+    case "Rule 2":
+      return `Essential bill with a ${grace}-day grace period. The grace period only delays the penalty — it does not remove it, so this bill must still be paid this period.`;
+
+    case "Rule 3":
+      return `Non-essential but penalized. Has a ${grace}-day grace period — safe to defer when budget is tight.`;
+
+    case "Rule 4a":
       return "Not essential and no penalty for paying late. It's the first bill to postpone if money runs short.";
-    }
-    return b.graceDays > 0
-      ? `Can be delayed if needed: there's a ${b.graceDays}-day grace period before a penalty applies.`
-      : "Can be delayed if money runs short, but a penalty may apply the longer it waits.";
+
+    case "Rule 4b":
+      return `Discretionary but penalized. Has a ${grace}-day grace period — settle soon to avoid charges.`;
+
+    case "Fallback":
+      return "No specific rule matched — conservative default applied.";
+
+    default:
+      // Not yet classified (ruleApplied is null).
+      return "Not classified yet. Re-run the analysis to assign a priority.";
   }
-  return "Not classified yet. Re-run the analysis to assign a priority.";
 }
 
 // ---------------------------------------------------------------- risk projection
