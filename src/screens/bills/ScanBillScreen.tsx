@@ -8,7 +8,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh, fmt } from "../../theme";
 import { GOLD } from "../../brand";
 import { Text } from "../../ui/Text";
-import { Field, Sel, Btn, Toggle } from "../../components/Atoms";
+import { Field, Sel, Btn } from "../../components/Atoms";
 import { DateField } from "../../components/DateField";
 import { Piso } from "../../components/Piso";
 import { ScreenHeader } from "../../components/ScreenHeader";
@@ -51,8 +51,7 @@ export default function ScanBillScreen({ navigation, route }: Props) {
   const [category, setCategory] = useState("Other");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [grace, setGrace] = useState("0");
-  const [penalty, setPenalty] = useState(true);
+  const [billerId, setBillerId] = useState<number | null>(null); // a recognised biller brings its own rules
   const [formError, setFormError] = useState<string | null>(null);
 
   // The gold line that sweeps the frame while step === "camera" (off if the phone prefers reduced motion).
@@ -75,12 +74,12 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     setScanError(null);
     try {
       const { extracted } = await scanBill(uri, name, mimeType);
-      setName(extracted.merchant ?? "");
-      setCategory(guessCategoryLabel(extracted.merchant));
+      const biller = extracted.biller ?? null;
+      setBillerId(biller?.biller_id ?? null);
+      setName(biller?.name ?? extracted.merchant ?? "");
+      setCategory(biller && BILL_CATEGORIES.includes(biller.category) ? biller.category : guessCategoryLabel(extracted.merchant));
       setAmount(extracted.amount != null ? String(extracted.amount) : "");
       setDueDate(extracted.due_date ?? "");
-      setGrace("0");
-      setPenalty(true);
       // If OCR missed something, go straight to editing so the user can fill it in.
       setEditing(amountOnly ? extracted.amount == null : !extracted.merchant || extracted.amount == null || !extracted.due_date);
       setFormError(null);
@@ -127,18 +126,18 @@ export default function ScanBillScreen({ navigation, route }: Props) {
       return;
     }
 
-    const graceN = Number(grace || "0");
     if (!name.trim()) return setFormError("Enter the bill name.");
     if (!dueDate) return setFormError("Choose the due date.");
-    if (!Number.isInteger(graceN) || graceN < 0) return setFormError("Grace period must be 0 or more days.");
 
     publishBill({
       name: name.trim(),
       category,
       dueDay: Number(dueDate.slice(8, 10)),
       dueDate,
-      graceDays: graceN,
-      hasPenalty: penalty,
+      reminderDay: Number(dueDate.slice(8, 10)),
+      billerId: billerId ?? undefined,
+      graceDays: 0, // used only when no biller was recognised; a biller supplies its own rules
+      hasPenalty: true,
       amount: amt,
       min: amt, // a scanned bill has one exact amount
       max: amt,
@@ -186,23 +185,13 @@ export default function ScanBillScreen({ navigation, route }: Props) {
               </View>
               <Field label="Amount (₱)" value={amount} onChange={setAmount} placeholder="0.00" keyboardType="numeric" />
               <DateField label="Due date" value={dueDate} onChange={setDueDate} />
-              <Field label="Grace period (days)" value={grace} onChange={(v) => setGrace(v.replace(/\D/g, ""))} keyboardType="numeric" />
-              <View style={[styles.toggleCard, sh.sm]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.toggleLabel}>Has a penalty</Text>
-                  <Text style={styles.toggleSub}>A fee applies if it's paid late</Text>
-                </View>
-                <Toggle on={penalty} onToggle={() => setPenalty((v) => !v)} />
-              </View>
             </>
           ) : (
             <View style={[styles.summaryCard, sh.sm]}>
               <Row label="Bill name" value={name} />
               <Row label="Category" value={category} />
               <Row label="Amount" value={fmt(Number(amount) || 0)} />
-              <Row label="Due date" value={formatLong(dueDate)} />
-              <Row label="Grace period" value={`${grace || 0} days`} />
-              <Row label="Has a penalty" value={penalty ? "Yes" : "No"} last />
+              <Row label="Due date" value={formatLong(dueDate)} last />
             </View>
           )}
 
@@ -291,7 +280,7 @@ export default function ScanBillScreen({ navigation, route }: Props) {
         <View style={styles.hintPill}>
           <ScanLine size={15} color={scanError ? "#FFB4BF" : GOLD.light} strokeWidth={2} />
           <Text style={[styles.hintTitle, scanError ? { color: "#FFB4BF" } : null]}>
-            {scanError ?? "Align the bill within the frame"}
+            {scanError ?? "Fit the whole bill inside the frame"}
           </Text>
         </View>
         <Text style={styles.hintSub}>Works with Cepalco, Water District, Globe and more</Text>

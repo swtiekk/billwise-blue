@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Pressable, Alert, StyleSheet } from "react-native";
 import { Plus, Trash2, Users } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -9,6 +9,7 @@ import { Sheet } from "../../components/Sheet";
 import { SetupLayout } from "../../components/SetupLayout";
 import { ScreenLoading } from "../../components/ScreenLoading";
 import { useSetup } from "../../context/SetupContext";
+import { useSession } from "../../context/SessionContext";
 import { useLoadDraft } from "../../hooks/useLoadDraft";
 import { saveHouseholdEdit } from "../../api/edit";
 import { errorMessage } from "../../api/client";
@@ -22,6 +23,7 @@ const digits = (v: string) => v.replace(/\D/g, "");
 export default function SetupHouseholdScreen({ navigation, route }: Props) {
   const edit = route.name === "EditHousehold";
   const { draft, patch, addEarner, removeEarner } = useSetup();
+  const { user } = useSession();
   const { loading, error: loadError, reload } = useLoadDraft(edit);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -31,6 +33,15 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
+
+  // The person who registered is automatically the first earner (setup only; edit loads saved earners).
+  useEffect(() => {
+    if (!edit && user && draft.earners.length === 0) addEarner(user.firstName, user.lastName);
+  }, [edit, user, draft.earners.length, addEarner]);
+
+  const childCount = Number(draft.children || "0");
+  const seniorCount = Number(draft.seniors || "0");
+  const householdSize = draft.earners.length + childCount + seniorCount;
 
   const saveEarner = () => {
     if (!first.trim() || !last.trim()) {
@@ -57,10 +68,6 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
   };
 
   const validate = (): string | null => {
-    const total = Number(draft.totalMembers);
-    const deps = Number(draft.dependents || "0");
-    if (!Number.isInteger(total) || total < 1) return "Enter the total number of family members.";
-    if (deps >= total) return "Dependents must be fewer than the total family members.";
     if (!draft.housing) return "Choose a housing type.";
     if (draft.earners.length === 0) return "Add at least one earner.";
     return null;
@@ -104,32 +111,10 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
       nextLabel={edit ? (saving ? "Saving…" : "Save changes") : "Next"}
       error={error}
     >
-      <Field
-        label="Total family members"
-        value={draft.totalMembers}
-        onChange={(v) => patch({ totalMembers: digits(v) })}
-        placeholder="e.g. 4"
-        keyboardType="numeric"
-      />
-      <Field
-        label="Number of dependents"
-        value={draft.dependents}
-        onChange={(v) => patch({ dependents: digits(v) })}
-        placeholder="e.g. 2"
-        keyboardType="numeric"
-      />
-      <View style={{ marginBottom: 20 }}>
-        <Sel
-          label="Housing type"
-          value={draft.housing || "Select housing type"}
-          onChange={(v) => patch({ housing: v })}
-          options={HOUSING_TYPES}
-        />
-      </View>
-
       <FL>Earners</FL>
+      <Text style={styles.help}>People who bring in income. You are added automatically.</Text>
       <View style={{ gap: 10, marginBottom: 12 }}>
-        {draft.earners.map((e) => (
+        {draft.earners.map((e, i) => (
           <View key={e.id} style={[styles.earnerRow, sh.sm]}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
@@ -140,9 +125,13 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
             <Text style={styles.earnerName} numberOfLines={1}>
               {e.firstName} {e.lastName}
             </Text>
-            <Pressable onPress={() => askRemove(e.id, e.serverId, `${e.firstName} ${e.lastName}`)} hitSlop={8}>
-              <Trash2 size={18} color={C.muted} strokeWidth={1.8} />
-            </Pressable>
+            {i === 0 ? (
+              <Text style={styles.youTag}>You</Text>
+            ) : (
+              <Pressable onPress={() => askRemove(e.id, e.serverId, `${e.firstName} ${e.lastName}`)} hitSlop={8}>
+                <Trash2 size={18} color={C.muted} strokeWidth={1.8} />
+              </Pressable>
+            )}
           </View>
         ))}
         {draft.earners.length === 0 ? (
@@ -158,6 +147,38 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
         <Text style={styles.addBtnText}>Add earner</Text>
       </Pressable>
       {edit ? <Text style={styles.note}>New earners start with ₱0 income. Set it in Edit income.</Text> : null}
+
+      <View style={{ height: 24 }} />
+      <FL>Dependents</FL>
+      <Text style={styles.help}>Family members who rely on your income.</Text>
+      <Field
+        label="Children"
+        value={draft.children}
+        onChange={(v) => patch({ children: digits(v) })}
+        placeholder="e.g. 2"
+        keyboardType="numeric"
+      />
+      <Field
+        label="Senior citizens (60+)"
+        value={draft.seniors}
+        onChange={(v) => patch({ seniors: digits(v) })}
+        placeholder="e.g. 1"
+        keyboardType="numeric"
+      />
+      <Text style={styles.size}>
+        Household size: {householdSize} ({draft.earners.length} earner{draft.earners.length === 1 ? "" : "s"} + {childCount} child
+        {childCount === 1 ? "" : "ren"} + {seniorCount} senior{seniorCount === 1 ? "" : "s"})
+      </Text>
+
+      <View style={{ marginTop: 20 }}>
+        <Sel
+          label="Housing type"
+          value={draft.housing || "Select housing type"}
+          onChange={(v) => patch({ housing: v })}
+          options={HOUSING_TYPES}
+        />
+        <Text style={styles.help}>Tells us if rent or a housing payment is part of your regular bills.</Text>
+      </View>
 
       <Sheet visible={modal} onClose={() => setModal(false)} title="Add earner">
         <Field label="First name" value={first} onChange={setFirst} placeholder="Juan" />
@@ -178,6 +199,9 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 13, color: C.muted },
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 50, borderRadius: 25, backgroundColor: C.primaryLt },
   addBtnText: { fontSize: 14, fontWeight: "700", color: C.primary },
+  help: { fontSize: 12, color: C.muted, marginBottom: 10 },
+  youTag: { fontSize: 12, fontWeight: "700", color: C.primary },
+  size: { fontSize: 13, fontWeight: "600", color: C.text, marginTop: 4 },
   note: { fontSize: 12, color: C.muted, marginTop: 10 },
   modalError: { color: C.red, fontSize: 13, marginBottom: 10 },
 });

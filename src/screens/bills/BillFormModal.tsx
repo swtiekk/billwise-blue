@@ -1,58 +1,96 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, ScrollView, StyleSheet } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
 import { Field, Sel, Btn, Toggle } from "../../components/Atoms";
+import { CategoryIcon } from "../../components/CategoryIcon";
 import { ScreenHeader } from "../../components/ScreenHeader";
 import { BottomAction } from "../../components/BottomAction";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
-import { BILL_CATEGORIES } from "../../constants/options";
+import { BILL_CATEGORIES, DAY_OPTIONS, dayFromLabel, dayLabel } from "../../constants/options";
+import { getBillers, type Biller } from "../../api/billers";
+import { categoryFromText } from "../../api/bills";
 import { publishBill } from "../../navigation/billBus";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "BillForm">;
 
 const money = (v: string) => v.replace(/[^0-9.]/g, "");
+const DAYS_PER_MONTH = 30; // must match DAYS_PER_MONTH in the backend (setup_views.py)
 
+/** A stored daily cost is its monthly equivalent; show the per-day figure again when editing. */
+const perDay = (monthly: number) => String(Number((monthly / DAYS_PER_MONTH).toFixed(2)));
+
+/**
+ * Enrolls a bill, GCash-style: the biller was already picked, so this only asks for a nickname,
+ * a rough monthly cost, and when to be reminded. BillWise only monitors, so there is no account
+ * number. Grace period and late penalty come from the biller; the user is never asked.
+ */
 export default function BillFormModal({ navigation, route }: Props) {
   const editing = route.params?.edit;
   const initial = route.params?.initial;
-  // Setup 3 collects amounts later (Setup 4); Edit budget items has no later step, so ask here.
-  const needsRange = !!route.params?.needsRange || !!editing;
 
-  const [name, setName] = useState(editing?.name ?? initial?.name ?? "");
-  const [category, setCategory] = useState(editing?.category ?? initial?.category ?? "Electricity");
-  const [dueDay, setDueDay] = useState(editing ? String(editing.dueDay) : "");
-  const [grace, setGrace] = useState(editing ? String(editing.graceDays) : "0");
-  const [penalty, setPenalty] = useState(editing?.hasPenalty ?? true);
-  const [min, setMin] = useState(editing && editing.min > 0 ? String(editing.min) : "");
-  const [max, setMax] = useState(editing && editing.max > 0 ? String(editing.max) : "");
+  const [billerId] = useState<number | null>(editing?.billerId ?? initial?.billerId ?? null);
+  const [billers, setBillers] = useState<Biller[]>([]);
+  const selected = billers.find((b) => b.biller_id === billerId);
+  const hasBiller = billerId != null;
+
+  // With a biller: `name` is the biller's name and `nickname` is optional. Without one: `name` is typed in.
+  const [name, setName] = useState(hasBiller ? "" : editing?.name ?? initial?.name ?? "");
+  const [nickname, setNickname] = useState("");
+  const [category, setCategory] = useState(editing?.category ?? initial?.category ?? "Other");
+  const [isDaily, setIsDaily] = useState(editing?.isDaily ?? false);
+  const [reminder, setReminder] = useState<number | null>(editing ? editing.reminderDay ?? editing.dueDay : null);
+  const minInit = editing && editing.min > 0 ? (editing.isDaily ? perDay(editing.min) : String(editing.min)) : "";
+  const maxInit = editing && editing.max > 0 ? (editing.isDaily ? perDay(editing.max) : String(editing.max)) : "";
+  const [min, setMin] = useState(minInit);
+  const [max, setMax] = useState(maxInit);
   const [error, setError] = useState<string | null>(null);
 
+  // Needed to know the biller's real name when editing: the saved name may be a nickname.
+  useEffect(() => {
+    if (!hasBiller) return;
+    let live = true;
+    getBillers()
+      .then((list) => {
+        if (!live) return;
+        setBillers(list);
+        const b = list.find((x) => x.biller_id === billerId);
+        if (editing && b && editing.name !== b.name) setNickname(editing.name);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const billerName = selected?.name ?? initial?.name ?? editing?.name ?? "";
+
   const save = () => {
-    const day = Number(dueDay);
-    const graceN = Number(grace || "0");
-    if (!name.trim()) return setError("Enter the item name.");
-    if (!Number.isInteger(day) || day < 1 || day > 31) return setError("Due day must be a number from 1 to 31.");
-    if (!Number.isInteger(graceN) || graceN < 0) return setError("Grace period must be 0 or more days.");
+    const finalName = hasBiller ? nickname.trim() || billerName : name.trim();
+    if (!finalName) return setError("Enter the bill name.");
 
-    let lo: number | undefined;
-    let hi: number | undefined;
-    if (needsRange) {
-      lo = Number(min);
-      hi = Number(max);
-      if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo <= 0 || hi <= 0) return setError("Enter a minimum and maximum amount.");
-      if (lo > hi) return setError("The minimum can't be higher than the maximum.");
-    }
+    const lo = Number(min);
+    const hi = Number(max);
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo <= 0 || hi <= 0) return setError("Enter the lowest and highest you usually pay.");
+    if (lo > hi) return setError("The lowest amount can't be higher than the highest.");
 
+    if (!isDaily && reminder == null) return setError("Choose which day of the month to be reminded.");
+
+    const day = isDaily ? 1 : (reminder as number); // a daily cost has no day of its own
     publishBill({
       id: editing?.id,
-      name: name.trim(),
+      name: finalName,
       category,
       dueDay: day,
-      graceDays: graceN,
-      hasPenalty: penalty,
+      reminderDay: isDaily ? undefined : day,
+      isDaily,
+      billerId: billerId ?? undefined,
+      // Used only when there is no biller; a biller supplies its own rules on the server.
+      graceDays: editing?.graceDays ?? 0,
+      hasPenalty: editing?.hasPenalty ?? true,
       min: lo,
       max: hi,
     });
@@ -65,44 +103,58 @@ export default function BillFormModal({ navigation, route }: Props) {
       <ScreenHeader title={editing ? "Edit bill" : "Add a bill"} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-        <Field label="Item name" value={name} onChange={setName} placeholder="e.g. Meralco electric bill" />
+        {hasBiller ? (
+          <>
+            <View style={[styles.billerCard, sh.sm]}>
+              <View style={styles.billerIcon}>
+                <CategoryIcon category={categoryFromText(`${category} ${billerName}`)} size={22} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.billerName} numberOfLines={1}>{billerName}</Text>
+                <Text style={styles.billerSub}>{category}</Text>
+              </View>
+            </View>
+            <Text style={styles.help}>We'll apply {billerName}'s grace period and late-payment rules for you.</Text>
+            <View style={{ height: 16 }} />
+            <Field label="Nickname (optional)" value={nickname} onChange={setNickname} placeholder="e.g. Home, Mama's house" />
+          </>
+        ) : (
+          <>
+            <Field label="Bill name" value={name} onChange={setName} placeholder="e.g. Water refill, Rent" />
+            <View style={{ marginBottom: 16 }}>
+              <Sel label="Category" value={category} onChange={setCategory} options={BILL_CATEGORIES} />
+            </View>
+          </>
+        )}
 
-        <View style={{ marginBottom: 16 }}>
-          <Sel label="Category" value={category} onChange={setCategory} options={BILL_CATEGORIES} />
+        <Text style={styles.sectionLabel}>{isDaily ? "Estimated daily cost" : "Estimated monthly cost"}</Text>
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Field label="Lowest (₱)" value={min} onChange={(v) => setMin(money(v))} placeholder="e.g. 5000" keyboardType="numeric" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Field label="Highest (₱)" value={max} onChange={(v) => setMax(money(v))} placeholder="e.g. 8000" keyboardType="numeric" />
+          </View>
         </View>
+        <Text style={[styles.help, { marginTop: -6, marginBottom: 14 }]}>A rough range is fine. It changes month to month.</Text>
 
-        <Field
-          label="Due day (1 to 31)"
-          value={dueDay}
-          onChange={(v) => setDueDay(v.replace(/\D/g, ""))}
-          placeholder="e.g. 15"
-          keyboardType="numeric"
-        />
-        <Field
-          label="Grace period (days)"
-          value={grace}
-          onChange={(v) => setGrace(v.replace(/\D/g, ""))}
-          placeholder="0"
-          keyboardType="numeric"
-        />
-
-        {needsRange ? (
-          <View style={{ flexDirection: "row", gap: 12 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="Min (₱)" value={min} onChange={(v) => setMin(money(v))} placeholder="0" keyboardType="numeric" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Max (₱)" value={max} onChange={(v) => setMax(money(v))} placeholder="0" keyboardType="numeric" />
-            </View>
+        {!isDaily ? (
+          <View style={{ marginBottom: 16 }}>
+            <Sel
+              label="Remind me every month on"
+              value={reminder != null ? dayLabel(reminder) : "Select day"}
+              onChange={(v) => setReminder(dayFromLabel(v))}
+              options={DAY_OPTIONS}
+            />
           </View>
         ) : null}
 
         <View style={[styles.toggleCard, sh.sm]}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.toggleLabel}>Has a penalty</Text>
-            <Text style={styles.toggleSub}>A fee applies if it's paid late</Text>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={styles.toggleLabel}>This is a daily cost</Text>
+            <Text style={styles.toggleSub}>Turn on if you pay it every day, like fare or a daily meal. Electricity and water are monthly.</Text>
           </View>
-          <Toggle on={penalty} onToggle={() => setPenalty((v) => !v)} />
+          <Toggle on={isDaily} onToggle={() => setIsDaily((v) => !v)} />
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -121,7 +173,13 @@ export default function BillFormModal({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  toggleCard: { backgroundColor: C.surface, borderRadius: 22, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  billerCard: { backgroundColor: C.surface, borderRadius: 22, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
+  billerIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
+  billerName: { fontSize: 16, fontWeight: "700", color: C.text },
+  billerSub: { fontSize: 12, color: C.muted, marginTop: 2 },
+  sectionLabel: { fontSize: 13, fontWeight: "700", color: C.text, marginBottom: 8 },
+  help: { fontSize: 12, color: C.muted, marginTop: 8 },
+  toggleCard: { backgroundColor: C.surface, borderRadius: 22, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   toggleLabel: { fontSize: 14, fontWeight: "600", color: C.text },
   toggleSub: { fontSize: 12, color: C.muted, marginTop: 2 },
   error: { color: C.red, fontSize: 13, marginTop: 12 },

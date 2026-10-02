@@ -2,7 +2,7 @@ import { api } from "./client";
 import type { ApiBill, Household } from "./types";
 import type { SetupDraft } from "../context/SetupContext";
 import type { BillInput } from "../navigation/billBus";
-import { bandFor, bandForRange } from "../constants/options";
+import { bandFor, bandForRange, normalizeFrequency } from "../constants/options";
 import { parseRange } from "./bills";
 
 // ---------------------------------------------------------------- read
@@ -14,6 +14,9 @@ export interface ServerEarner {
   income_id: number | null;
   frequency: string;
   range_amount: string;
+  payday_weekday: number | null;
+  payday_day_1: number | null;
+  payday_day_2: number | null;
   next_payday: string | null;
 }
 
@@ -33,17 +36,19 @@ const num = (v: string | number | null | undefined) => String(Number(v ?? 0));
 export function toDraft(s: CurrentSetup): SetupDraft {
   const h = s.household;
   return {
-    totalMembers: h.total_members ? String(h.total_members) : "",
-    dependents: String(h.no_of_dependents ?? 0),
+    children: String(h.no_of_children ?? 0),
+    seniors: String(h.no_of_seniors ?? 0),
     housing: h.housing_type || "",
     earners: s.earners.map((e) => ({
       id: `e${e.earner_id}`,
       serverId: e.earner_id,
       firstName: e.first_name,
       lastName: e.last_name,
-      frequency: e.frequency || "Monthly",
+      frequency: normalizeFrequency(e.frequency),
       incomeRange: bandForRange(e.range_amount)?.label ?? "",
-      nextPayday: e.next_payday ?? "",
+      paydayWeekday: e.payday_weekday,
+      payday1: e.payday_day_1,
+      payday2: e.payday_day_2,
     })),
     bills: s.bills.map((b) => {
       const [lo, hi] = parseRange(b.budget_amount_range);
@@ -55,6 +60,9 @@ export function toDraft(s: CurrentSetup): SetupDraft {
         dueDay: b.due_day ?? 1,
         graceDays: b.grace_period_days ?? 0,
         hasPenalty: !!b.penalty_classification,
+        billerId: b.biller_id ?? undefined,
+        reminderDay: b.reminder_day ?? undefined,
+        isDaily: !!b.is_daily,
         amount: b.amount != null ? Number(b.amount) : undefined,
         dueDate: b.actual_due_date ?? undefined,
         min: String(lo),
@@ -71,8 +79,8 @@ export function toDraft(s: CurrentSetup): SetupDraft {
 export const saveHouseholdEdit = (d: SetupDraft) =>
   api.put("/api/setup/household/", {
     household: {
-      total_members: Number(d.totalMembers),
-      no_of_dependents: Number(d.dependents || "0"),
+      no_of_children: Number(d.children || "0"),
+      no_of_seniors: Number(d.seniors || "0"),
       housing_type: d.housing,
     },
     earners: d.earners.map((e) => ({
@@ -88,7 +96,9 @@ export const saveIncomeEdit = (d: SetupDraft) =>
       earner_id: e.serverId,
       frequency: e.frequency,
       range_amount: bandFor(e.incomeRange)?.value ?? "",
-      next_payday: e.nextPayday,
+      payday_weekday: e.frequency === "Weekly" ? e.paydayWeekday : null,
+      payday_day_1: e.frequency === "Weekly" ? null : e.payday1,
+      payday_day_2: e.frequency === "Twice a month" ? e.payday2 : null,
     })),
   });
 
@@ -110,6 +120,9 @@ const billBody = (b: BillInput) => ({
   due_date: b.dueDate ?? null,
   grace_period_days: b.graceDays,
   penalty_classification: b.hasPenalty,
+  biller_id: b.billerId ?? null,
+  reminder_day: b.reminderDay ?? null,
+  is_daily: !!b.isDaily,
   amount: b.amount ?? null,
   min_amount: b.min ?? b.amount ?? 0,
   max_amount: b.max ?? b.amount ?? 0,

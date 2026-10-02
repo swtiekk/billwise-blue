@@ -6,7 +6,10 @@ export interface BillEditParams {
   dueDay: number;
   graceDays: number;
   hasPenalty: boolean;
-  min: number;
+  billerId?: number | null;
+  reminderDay?: number | null;
+  isDaily?: boolean;
+  min: number; // monthly amounts (a daily cost is stored as its monthly equivalent)
   max: number;
 }
 
@@ -43,6 +46,7 @@ export type RootStackParamList = {
   // bill entry
   ScanBill: { forBillId?: string } | undefined; // forBillId = only update that bill's amount
   BillForm:
-    | { initial?: { name?: string; category?: string }; edit?: BillEditParams; needsRange?: boolean }
+    | { initial?: { name?: string; category?: string; billerId?: number }; edit?: BillEditParams; needsRange?: boolean }
     | undefined;
+  AddBiller: undefined; // category -> search -> pick a biller, then BillForm
 };

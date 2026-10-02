@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { View, Pressable, StyleSheet } from "react-native";
-import { ScanLine, PenLine, Trash2, FileText } from "lucide-react-native";
+import { ScanLine, Plus, Trash2, FileText } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { C, sh } from "../../theme";
+import { C, sh, fmt } from "../../theme";
 import { Text } from "../../ui/Text";
 import { FL } from "../../components/Atoms";
 import { CategoryIcon } from "../../components/CategoryIcon";
@@ -10,7 +10,7 @@ import { SetupLayout } from "../../components/SetupLayout";
 import { useSetup } from "../../context/SetupContext";
 import { subscribeBill } from "../../navigation/billBus";
 import { categoryFromText } from "../../api/bills";
-import { QUICK_ADD_CATEGORIES } from "../../constants/options";
+import { dayLabel } from "../../constants/options";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SetupBills">;
@@ -35,7 +35,7 @@ export default function SetupBillsScreen({ navigation }: Props) {
     <SetupLayout
       step={3}
       title="What bills do you pay?"
-      subtitle="Add the bills you pay every month. Scan one, or type it in."
+      subtitle="Enroll each biller you pay, like Cepalco or your water district. Scan a bill or pick the biller."
       onBack={() => navigation.goBack()}
       onNext={next}
       error={error}
@@ -47,25 +47,12 @@ export default function SetupBillsScreen({ navigation }: Props) {
           </View>
           <Text style={styles.actionLabel}>Scan a bill</Text>
         </Pressable>
-        <Pressable onPress={() => navigation.navigate("BillForm")} style={({ pressed }) => [styles.action, pressed && { opacity: 0.85 }]}>
+        <Pressable onPress={() => navigation.navigate("AddBiller")} style={({ pressed }) => [styles.action, pressed && { opacity: 0.85 }]}>
           <View style={styles.actionIcon}>
-            <PenLine size={22} color={C.primary} strokeWidth={1.9} />
+            <Plus size={22} color={C.primary} strokeWidth={1.9} />
           </View>
-          <Text style={styles.actionLabel}>Add manually</Text>
+          <Text style={styles.actionLabel}>Add a biller</Text>
         </Pressable>
-      </View>
-
-      <FL>Quick add</FL>
-      <View style={styles.chipWrap}>
-        {QUICK_ADD_CATEGORIES.map((c) => (
-          <Pressable
-            key={c}
-            onPress={() => navigation.navigate("BillForm", { initial: { name: c, category: c } })}
-            style={({ pressed }) => [styles.chip, pressed && { opacity: 0.8 }]}
-          >
-            <Text style={styles.chipText}>+ {c}</Text>
-          </Pressable>
-        ))}
       </View>
 
       <FL>{`Your bills (${draft.bills.length})`}</FL>
@@ -77,9 +64,13 @@ export default function SetupBillsScreen({ navigation }: Props) {
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.billName} numberOfLines={1}>{b.name}</Text>
-              <Text style={styles.billSub} numberOfLines={1}>{b.category}, due day {b.dueDay}</Text>
+              <Text style={styles.billSub} numberOfLines={1}>
+                {b.category}
+                {b.isDaily ? ", daily cost" : b.reminderDay ? `, remind me on the ${dayLabel(b.reminderDay)}` : ""}
+              </Text>
               <Text style={styles.billSub2} numberOfLines={1}>
-                Grace {b.graceDays} day{b.graceDays === 1 ? "" : "s"}{b.hasPenalty ? ", with penalty" : ""}
+                {Number(b.min) === Number(b.max) ? fmt(Number(b.min)) : `${fmt(Number(b.min))} – ${fmt(Number(b.max))}`}
+                {b.isDaily ? " a day" : " a month"}
               </Text>
             </View>
             <Pressable onPress={() => removeBill(b.id)} hitSlop={8}>
@@ -103,9 +94,6 @@ const styles = StyleSheet.create({
   action: { flex: 1, backgroundColor: C.primaryLt, borderRadius: 24, paddingVertical: 18, alignItems: "center", gap: 10 },
   actionIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#FFF", alignItems: "center", justifyContent: "center" },
   actionLabel: { fontSize: 14, fontWeight: "700", color: C.primary },
-  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 22 },
-  chip: { backgroundColor: C.surface, borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1.5, borderColor: "#D3E1FA" },
-  chipText: { fontSize: 13, fontWeight: "600", color: C.sub },
   billRow: { backgroundColor: C.surface, borderRadius: 22, padding: 12, flexDirection: "row", alignItems: "center", gap: 12 },
   billIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.primaryLt, alignItems: "center", justifyContent: "center" },
   billName: { fontSize: 15, fontWeight: "600", color: C.text },

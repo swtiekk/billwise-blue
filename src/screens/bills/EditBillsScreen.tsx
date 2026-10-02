@@ -60,6 +60,9 @@ export default function EditBillsScreen({ navigation }: Props) {
         dueDay: b.dueDay ?? (b.dueDate ? Number(b.dueDate.slice(8, 10)) : 1),
         graceDays: b.graceDays,
         hasPenalty: b.hasPenalty,
+        billerId: b.billerId,
+        reminderDay: b.reminderDay,
+        isDaily: b.isDaily,
         min: b.amountMin,
         max: b.amountMax,
       },
@@ -104,11 +107,11 @@ export default function EditBillsScreen({ navigation }: Props) {
             </View>
             <Text style={styles.actionLabel}>Scan a bill</Text>
           </Pressable>
-          <Pressable onPress={() => navigation.navigate("BillForm", { needsRange: true })} style={({ pressed }) => [styles.action, pressed && { opacity: 0.85 }]}>
+          <Pressable onPress={() => navigation.navigate("AddBiller")} style={({ pressed }) => [styles.action, pressed && { opacity: 0.85 }]}>
             <View style={styles.actionIcon}>
               <PenLine size={22} color={C.primary} strokeWidth={1.9} />
             </View>
-            <Text style={styles.actionLabel}>Add manually</Text>
+            <Text style={styles.actionLabel}>Add a biller</Text>
           </Pressable>
         </View>
 

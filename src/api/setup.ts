@@ -5,13 +5,15 @@ import type { SetupDraft } from "../context/SetupContext";
 import { bandFor } from "../constants/options";
 
 export interface SetupPayload {
-  household: { total_members: number; no_of_dependents: number; housing_type: string };
+  household: { no_of_children: number; no_of_seniors: number; housing_type: string };
   earners: {
     first_name: string;
     last_name: string;
     frequency: string;
     range_amount: string;
-    next_payday: string;
+    payday_weekday: number | null;
+    payday_day_1: number | null;
+    payday_day_2: number | null;
   }[];
   bills: {
     item_desc: string;
@@ -20,6 +22,9 @@ export interface SetupPayload {
     due_date: string | null;
     grace_period_days: number;
     penalty_classification: boolean;
+    biller_id: number | null;
+    reminder_day: number | null;
+    is_daily: boolean;
     amount: number | null;
     min_amount: number;
     max_amount: number;
@@ -31,8 +36,8 @@ export interface SetupPayload {
 export function buildSetupPayload(d: SetupDraft): SetupPayload {
   return {
     household: {
-      total_members: Number(d.totalMembers),
-      no_of_dependents: Number(d.dependents || "0"),
+      no_of_children: Number(d.children || "0"),
+      no_of_seniors: Number(d.seniors || "0"),
       housing_type: d.housing,
     },
     earners: d.earners.map((e) => ({
@@ -40,7 +45,9 @@ export function buildSetupPayload(d: SetupDraft): SetupPayload {
       last_name: e.lastName,
       frequency: e.frequency,
       range_amount: bandFor(e.incomeRange)?.value ?? "",
-      next_payday: e.nextPayday,
+      payday_weekday: e.frequency === "Weekly" ? e.paydayWeekday : null,
+      payday_day_1: e.frequency === "Weekly" ? null : e.payday1,
+      payday_day_2: e.frequency === "Twice a month" ? e.payday2 : null,
     })),
     bills: d.bills.map((b) => ({
       item_desc: b.name,
@@ -49,6 +56,9 @@ export function buildSetupPayload(d: SetupDraft): SetupPayload {
       due_date: b.dueDate ?? null,
       grace_period_days: b.graceDays,
       penalty_classification: b.hasPenalty,
+      biller_id: b.billerId ?? null,
+      reminder_day: b.reminderDay ?? null,
+      is_daily: !!b.isDaily,
       amount: b.amount ?? null,
       min_amount: Number(b.min),
       max_amount: Number(b.max),

@@ -20,6 +20,7 @@ import NotificationsScreen from "../screens/NotificationsScreen";
 
 import ScanBillScreen from "../screens/bills/ScanBillScreen";
 import BillFormModal from "../screens/bills/BillFormModal";
+import AddBillerScreen from "../screens/bills/AddBillerScreen";
 import EditBillsScreen from "../screens/bills/EditBillsScreen";
 import UpdateBillsScreen from "../screens/bills/UpdateBillsScreen";
 
@@ -66,6 +67,7 @@ export default function RootNavigator() {
 
       {/* Bill entry */}
       <Stack.Screen name="ScanBill" component={ScanBillScreen} options={{ animation: "slide_from_bottom" }} />
+      <Stack.Screen name="AddBiller" component={AddBillerScreen} />
       <Stack.Screen name="BillForm" component={BillFormModal} options={{ animation: "slide_from_bottom" }} />
     </Stack.Navigator>
   );
