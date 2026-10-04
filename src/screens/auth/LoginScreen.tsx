@@ -1,16 +1,17 @@
 import React, { useState } from "react";
-import { View, Pressable, ScrollView, Alert, StyleSheet } from "react-native";
+import { View, Pressable, ScrollView, Alert, KeyboardAvoidingView, StyleSheet } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
 import { Field, Btn } from "../../components/Atoms";
-import { Piso } from "../../components/Piso";
+import { BrandMark } from "../../components/BrandMark";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { login } from "../../api/auth";
 import { errorMessage } from "../../api/client";
 import { useSession } from "../../context/SessionContext";
 import { useSetup } from "../../context/SetupContext";
+import { clearDataCache } from "../../hooks/dataCache";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
@@ -44,6 +45,7 @@ export default function LoginScreen({ navigation }: Props) {
     setError(null);
     try {
       const user = await login(email, pass);
+      clearDataCache();
       setUser(user);
       reset(); // never carry over another account's unfinished setup
       // Returning user -> Home. Signed up but never finished setup -> Setup 1.
@@ -55,11 +57,12 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior="padding">
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
       <FocusedStatusBar style="dark" />
 
       <View style={styles.head}>
-        <Piso size={72} mood="happy" />
+        <BrandMark size={44} />
         <Text style={styles.title}>Welcome back</Text>
         <Text style={styles.sub}>Log in to see how your bills and budget are doing.</Text>
       </View>
@@ -96,11 +99,12 @@ export default function LoginScreen({ navigation }: Props) {
         <Text style={styles.signupLink} onPress={() => navigation.navigate("Signup")}>Create an account</Text>
       </Text>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 72, paddingBottom: 32 },
+  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 72, paddingBottom: 120 },
   head: { marginBottom: 28 },
   title: { fontSize: 28, fontWeight: "800", color: C.text, marginTop: 14 },
   sub: { fontSize: 14, color: C.sub, marginTop: 6, lineHeight: 21 },

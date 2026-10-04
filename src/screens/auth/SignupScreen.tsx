@@ -1,16 +1,17 @@
 import React, { useState } from "react";
-import { View, Pressable, ScrollView, StyleSheet } from "react-native";
+import { View, Pressable, ScrollView, KeyboardAvoidingView, StyleSheet } from "react-native";
 import { ArrowLeft, Check } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
 import { Field, Btn } from "../../components/Atoms";
-import { Piso } from "../../components/Piso";
+import { BrandMark } from "../../components/BrandMark";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { register } from "../../api/auth";
 import { errorMessage } from "../../api/client";
 import { useSession } from "../../context/SessionContext";
 import { useSetup } from "../../context/SetupContext";
+import { clearDataCache } from "../../hooks/dataCache";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Signup">;
@@ -55,6 +56,7 @@ export default function SignupScreen({ navigation }: Props) {
     setError(null);
     try {
       const user = await register({ firstName, lastName, email, password: pass });
+      clearDataCache();
       setUser(user);
       reset();
       navigation.reset({ index: 0, routes: [{ name: "SetupHousehold" }] }); // new user -> Setup 1
@@ -65,7 +67,8 @@ export default function SignupScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior="padding">
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
       <FocusedStatusBar style="dark" />
 
       <Pressable onPress={() => navigation.goBack()} style={[styles.back, sh.sm]}>
@@ -73,7 +76,7 @@ export default function SignupScreen({ navigation }: Props) {
       </Pressable>
 
       <View style={styles.head}>
-        <Piso size={64} mood="happy" />
+        <BrandMark size={44} />
         <Text style={styles.title}>Create your account</Text>
         <Text style={styles.sub}>Join thousands of Filipino families managing bills smartly.</Text>
       </View>
@@ -104,11 +107,12 @@ export default function SignupScreen({ navigation }: Props) {
         <Text style={styles.link} onPress={() => navigation.goBack()}>Log in</Text>
       </Text>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 56, paddingBottom: 40 },
+  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 56, paddingBottom: 120 },
   back: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", marginBottom: 18 },
   head: { marginBottom: 24 },
   title: { fontSize: 26, fontWeight: "800", color: C.text, marginTop: 12 },

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, StyleSheet } from "react-native";
+import { View, ScrollView, KeyboardAvoidingView, StyleSheet } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
@@ -119,7 +119,8 @@ export default function BillFormModal({ navigation, route }: Props) {
       <FocusedStatusBar style="dark" />
       <ScreenHeader title={editing ? "Edit bill" : "Add a bill"} onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         {hasBiller ? (
           <>
             <View style={[styles.billerCard, sh.sm]}>
@@ -176,6 +177,7 @@ export default function BillFormModal({ navigation, route }: Props) {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <BottomAction>
         <View style={{ flex: 1 }}>

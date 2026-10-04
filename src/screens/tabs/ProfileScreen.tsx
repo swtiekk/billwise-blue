@@ -7,16 +7,15 @@ import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
 import { TabBar } from "../../components/TabBar";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
-import { FontCheck } from "../../components/FontCheck";
 import { logout, displayName } from "../../api/auth";
+import { clearDataCache } from "../../hooks/dataCache";
 import { fetchCurrentSetup, type CurrentSetup, type ServerEarner } from "../../api/edit";
 import { WEEKDAYS, dayLabel } from "../../constants/options";
 import { useSession } from "../../context/SessionContext";
 import { useSetup } from "../../context/SetupContext";
-import { useTextSize } from "../../context/TextSizeContext";
 import { useRisk } from "../../hooks/useRisk";
 import { useTabNav } from "../../navigation/useTabNav";
-import { sendTestReminder, ensurePermission, remindersSupported, clearReminders, scheduleBillReminders } from "../../notifications/reminders";
+import { ensurePermission, remindersSupported, clearReminders, scheduleBillReminders } from "../../notifications/reminders";
 import { getRemindersEnabled, setRemindersEnabled } from "../../notifications/settings";
 import { fetchBills } from "../../api/bills";
 import { Toggle } from "../../components/Atoms";
@@ -25,17 +24,17 @@ import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
-function NavRow({ Icon, label, sub, onPress }: { Icon: any; label: string; sub?: string; onPress: () => void }) {
+function NavRow({ Icon, label, sub, onPress, danger }: { Icon: any; label: string; sub?: string; onPress: () => void; danger?: boolean }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && { backgroundColor: "#F3F8FF" }]}>
-      <View style={styles.rowIcon}>
-        <Icon size={19} color={C.primary} strokeWidth={1.9} />
+      <View style={[styles.rowIcon, danger && { backgroundColor: C.redBg }]}>
+        <Icon size={19} color={danger ? C.red : C.primary} strokeWidth={1.9} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={[styles.rowLabel, danger && { color: C.red }]}>{label}</Text>
         {!!sub && <Text style={styles.rowSub} numberOfLines={1}>{sub}</Text>}
       </View>
-      <ChevronRight size={18} color="#9DB0D6" strokeWidth={2} />
+      {danger ? null : <ChevronRight size={18} color="#9DB0D6" strokeWidth={2} />}
     </Pressable>
   );
 }
@@ -51,11 +50,9 @@ function paydayText(e: ServerEarner): string {
 export default function ProfileScreen({ navigation }: Props) {
   const { user, setUser } = useSession();
   const { reset } = useSetup();
-  const { size: textSize, setSize: setTextSize } = useTextSize();
   const goTab = useTabNav();
   const { risk, refresh: refreshRisk } = useRisk();
   const [setup, setSetup] = useState<CurrentSetup | null>(null);
-  const [showFonts, setShowFonts] = useState(false);
   const [reminders, setReminders] = useState(true);
 
   useFocusEffect(
@@ -70,6 +67,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const onLogout = async () => {
     await logout();
+    clearDataCache();
     reset();
     setUser(null);
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
@@ -93,18 +91,6 @@ export default function ProfileScreen({ navigation }: Props) {
     setReminders(true);
     await setRemindersEnabled(true);
     fetchBills().then((b) => scheduleBillReminders(b)).catch(() => {});
-  };
-
-  // Development only: fires a sample reminder in 5 seconds so you can see how it looks.
-  const onTestReminder = async () => {
-    const result = await sendTestReminder().catch(() => "denied" as const);
-    if (result === "sent") {
-      Alert.alert("Test reminder sent", "It will appear in about 5 seconds. Try leaving the app, then tap it.");
-    } else if (result === "unsupported") {
-      Alert.alert("Not available in Expo Go", "Reminders can't run inside Expo Go. They work in a development build of the app.");
-    } else {
-      Alert.alert("Notifications are off", "Allow notifications for this app in your phone settings.");
-    }
   };
 
   const household = setup?.household ?? null;
@@ -180,41 +166,16 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
         </View>
 
-        <Text style={styles.groupTitle}>Text size</Text>
-        <View style={styles.sizeBar}>
-          {(["small", "default", "large"] as const).map((k) => (
-            <Pressable key={k} onPress={() => setTextSize(k)} style={[styles.sizeBtn, textSize === k && styles.sizeBtnOn]}>
-              <Text style={[styles.sizeText, textSize === k && { color: "#FFF" }]}>
-                {k === "small" ? "Small" : k === "large" ? "Large" : "Default"}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={styles.groupTitle}>More</Text>
+        <Text style={styles.groupTitle}>Account</Text>
         <View style={[styles.group, sh.sm]}>
           <NavRow Icon={Info} label="About BillWise" onPress={() => navigation.navigate("About")} />
           <View style={styles.divider} />
           <NavRow Icon={Lock} label="Privacy policy" onPress={() => navigation.navigate("Privacy")} />
+          <View style={styles.divider} />
+          <NavRow Icon={LogOut} label="Log out" danger onPress={onLogout} />
         </View>
 
-        <Pressable onPress={onLogout} style={({ pressed }) => [styles.logout, pressed && { backgroundColor: "#FFF3F5" }]}>
-          <LogOut size={18} color={C.red} strokeWidth={2} />
-          <Text style={styles.logoutText}>Log out</Text>
-        </Pressable>
-
         <Text style={styles.footer}>BillWise v1.0.0, made for Filipino families</Text>
-        {__DEV__ ? (
-          <Pressable onPress={onTestReminder}>
-            <Text style={styles.devLink}>Send test reminder (dev only)</Text>
-          </Pressable>
-        ) : null}
-        {__DEV__ ? (
-          <Pressable onPress={() => setShowFonts((v) => !v)}>
-            <Text style={styles.devLink}>{showFonts ? "Hide font check" : "Font check (dev only)"}</Text>
-          </Pressable>
-        ) : null}
-        {__DEV__ && showFonts ? <FontCheck /> : null}
       </ScrollView>
 
       <TabBar active="profile" onChange={goTab} />
@@ -233,8 +194,6 @@ const styles = StyleSheet.create({
   tile: { flex: 1, borderRadius: 22, paddingVertical: 14, paddingHorizontal: 12 },
   tileLabel: { fontSize: 12, color: C.sub },
   tileValue: { fontSize: 18, fontWeight: "800", color: C.text, marginTop: 4 },
-  logout: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.surface, borderRadius: 99, borderWidth: 1.5, borderColor: C.redBg, paddingVertical: 13, marginTop: 4 },
-  logoutText: { fontSize: 14, fontWeight: "700", color: C.red },
   groupTitle: { fontSize: 16, fontWeight: "700", color: C.text, marginTop: 10 },
   group: { backgroundColor: C.surface, borderRadius: 24, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
@@ -242,10 +201,5 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 14, fontWeight: "600", color: C.text },
   rowSub: { fontSize: 12, color: C.muted, marginTop: 1 },
   divider: { height: 1, backgroundColor: "#EAF1FD", marginLeft: 68 },
-  sizeBar: { flexDirection: "row", backgroundColor: C.primaryLt, borderRadius: 20, padding: 4, gap: 4 },
-  sizeBtn: { flex: 1, paddingVertical: 11, borderRadius: 16, alignItems: "center" },
-  sizeBtnOn: { backgroundColor: C.primary },
-  sizeText: { fontSize: 13, fontWeight: "600", color: C.primary },
   footer: { textAlign: "center", fontSize: 12, color: C.muted, marginTop: 8 },
-  devLink: { textAlign: "center", fontSize: 12, color: C.primary, fontWeight: "600", paddingBottom: 6 },
 });

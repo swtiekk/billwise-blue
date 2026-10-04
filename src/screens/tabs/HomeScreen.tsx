@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Bell } from "lucide-react-native";
@@ -8,6 +8,7 @@ import { Text } from "../../ui/Text";
 import { TabBar } from "../../components/TabBar";
 import { RiskHero } from "../../components/RiskHero";
 import { RankedBillCard } from "../../components/RankedBillCard";
+import { SkeletonCard } from "../../components/SkeletonCard";
 import { Piso } from "../../components/Piso";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { useBills } from "../../hooks/useBills";
@@ -40,13 +41,19 @@ export default function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     if (!loaded) return;
     getRemindersEnabled()
-      .then((on) => (on ? scheduleBillReminders(bills) : clearReminders()))
+      .then(async (on) => {
+        if (on) await scheduleBillReminders(bills);
+        else await clearReminders();
+      })
       .catch(() => {});
   }, [bills, loaded]);
 
-  const refreshAll = useCallback(() => {
-    refreshBills();
-    refreshRisk();
+  // The spinner is only for an actual pull-down; background refreshes are silent.
+  const [pulling, setPulling] = useState(false);
+  const pull = useCallback(async () => {
+    setPulling(true);
+    await Promise.all([refreshBills(), refreshRisk()]);
+    setPulling(false);
   }, [refreshBills, refreshRisk]);
 
   const alertCount = bills.filter((b) => b.status === "overdue" || b.status === "due-soon").length;
@@ -67,7 +74,7 @@ export default function HomeScreen({ navigation }: Props) {
       <FocusedStatusBar style="dark" />
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshAll} />}
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={pull} />}
       >
         <View style={styles.top}>
           <View style={styles.hello}>
@@ -99,6 +106,12 @@ export default function HomeScreen({ navigation }: Props) {
           {payFirst.map((b, i) => (
             <RankedBillCard key={b.id} bill={b} rank={i + 1} onPress={() => navigation.navigate("BillDetail", { id: b.id })} />
           ))}
+          {payFirst.length === 0 && loading ? (
+            <>
+              <SkeletonCard />
+              <SkeletonCard />
+            </>
+          ) : null}
           {payFirst.length === 0 && !loading ? (
             <View style={styles.empty}>
               <Piso size={56} mood="party" />

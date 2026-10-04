@@ -2,14 +2,16 @@ import { useCallback, useState } from "react";
 import type { RiskAssessment } from "../api/types";
 import { getRisk } from "../api/insights";
 import { errorMessage } from "../api/client";
+import { dataCache } from "./dataCache";
 
 export function useRisk() {
-  const [risk, setRisk] = useState<RiskAssessment | null>(null);
+  const [risk, setRisk] = useState<RiskAssessment | null>(dataCache.risk); // last known value, refreshed quietly
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const data = await getRisk();
+      dataCache.risk = data;
       setRisk(data);
       setError(null);
     } catch (e) {
