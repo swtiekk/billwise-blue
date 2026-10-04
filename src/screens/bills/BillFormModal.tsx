@@ -11,7 +11,9 @@ import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { BILL_CATEGORIES, DAY_OPTIONS, dayFromLabel, dayLabel } from "../../constants/options";
 import { getBillers, type Biller } from "../../api/billers";
 import { categoryFromText } from "../../api/bills";
-import { publishBill } from "../../navigation/billBus";
+import { publishBill, type BillInput } from "../../navigation/billBus";
+import { createSetupBill, updateSetupBill } from "../../api/edit";
+import { errorMessage } from "../../api/client";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "BillForm">;
@@ -30,6 +32,8 @@ const perDay = (monthly: number) => String(Number((monthly / DAYS_PER_MONTH).toF
 export default function BillFormModal({ navigation, route }: Props) {
   const editing = route.params?.edit;
   const initial = route.params?.initial;
+  const persist = !!route.params?.persist; // opened from the tab bar's +: save right away instead of handing the bill to a setup screen
+  const [saving, setSaving] = useState(false);
 
   const [billerId] = useState<number | null>(editing?.billerId ?? initial?.billerId ?? null);
   const [billers, setBillers] = useState<Biller[]>([]);
@@ -69,6 +73,7 @@ export default function BillFormModal({ navigation, route }: Props) {
   const billerName = selected?.name ?? initial?.name ?? editing?.name ?? "";
 
   const save = () => {
+    if (saving) return;
     const finalName = hasBiller ? nickname.trim() || billerName : name.trim();
     if (!finalName) return setError("Enter the bill name.");
 
@@ -80,7 +85,7 @@ export default function BillFormModal({ navigation, route }: Props) {
     if (!isDaily && reminder == null) return setError("Choose which day of the month to be reminded.");
 
     const day = isDaily ? 1 : (reminder as number); // a daily cost has no day of its own
-    publishBill({
+    const bill: BillInput = {
       id: editing?.id,
       name: finalName,
       category,
@@ -93,8 +98,20 @@ export default function BillFormModal({ navigation, route }: Props) {
       hasPenalty: editing?.hasPenalty ?? true,
       min: lo,
       max: hi,
-    });
-    navigation.goBack();
+    };
+
+    if (!persist) {
+      publishBill(bill);
+      navigation.goBack();
+      return;
+    }
+    setSaving(true);
+    (editing?.id ? updateSetupBill(editing.id, bill) : createSetupBill(bill))
+      .then(() => navigation.goBack())
+      .catch((e) => {
+        setSaving(false);
+        setError(errorMessage(e));
+      });
   };
 
   return (

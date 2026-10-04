@@ -57,6 +57,7 @@ export interface BudgetBill {
   billerId: number | null;
   reminderDay: number | null;
   isDaily: boolean;
+  isDeferred: boolean; // planned for after payday (only Deferrable bills can be)
   priority: "High" | "Medium" | "Low" | null;
   classification: "Non-deferrable" | "Deferrable" | null;
   ruleApplied: RuleApplied;
@@ -100,6 +101,7 @@ export function mapBill(b: ApiBill): BudgetBill {
     billerId: b.biller_id ?? null,
     reminderDay: b.reminder_day ?? null,
     isDaily: !!b.is_daily,
+    isDeferred: !!b.is_deferred,
     priority: b.priority_level,
     classification: b.budget_classification,
     ruleApplied: b.rule_applied ?? null,

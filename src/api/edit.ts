@@ -132,6 +132,29 @@ export const createSetupBill = (b: BillInput) => api.post<ApiBill>("/api/setup/b
 
 export const updateSetupBill = (id: string, b: BillInput) => api.put<ApiBill>(`/api/setup/bills/${id}/`, billBody(b));
 
+/** The priority a bill would get if saved now (nothing is written). Used by the scan review. */
+export interface PriorityPreview {
+  priority_level: "High" | "Medium" | "Low";
+  budget_classification: string;
+  rule_applied: string;
+  reason: string;
+  grace_period_days: number;
+  penalty_classification: boolean;
+}
+export const previewPriority = (b: { name: string; category: string; dueDate: string; billerId?: number | null }) =>
+  api.post<PriorityPreview>("/api/bills/preview-priority/", {
+    item_desc: b.name,
+    category: b.category,
+    due_date: b.dueDate,
+    biller_id: b.billerId ?? null,
+  });
+
+/** Plan to pay a deferrable bill after payday (or undo it). The bill's real due date doesn't change. */
+export const setBillDeferred = (id: string, deferred: boolean) => api.post<ApiBill>(`/api/bills/${id}/defer/`, { deferred });
+
+/** Mark a bill paid (or undo it). BillWise only monitors: this records that you paid it elsewhere. */
+export const setBillPaid = (id: string, paid: boolean) => api.post<ApiBill>(`/api/bills/${id}/pay/`, { is_paid: paid });
+
 export const deleteSetupBill = (id: string) => api.delete(`/api/setup/bills/${id}/`);
 
 // ---------------------------------------------------------------- Update This Period's Bills

@@ -44,9 +44,11 @@ export type RootStackParamList = {
   Privacy: undefined;
 
   // bill entry
-  ScanBill: { forBillId?: string } | undefined; // forBillId = only update that bill's amount
+  // forBillId = only update that bill's amount; persist = save the bill straight away (used from the tab bar's +, outside setup)
+  ScanBill: { forBillId?: string; persist?: boolean } | undefined;
   BillForm:
-    | { initial?: { name?: string; category?: string; billerId?: number }; edit?: BillEditParams; needsRange?: boolean }
+    | { initial?: { name?: string; category?: string; billerId?: number }; edit?: BillEditParams; needsRange?: boolean; persist?: boolean }
     | undefined;
-  AddBiller: undefined; // category -> search -> pick a biller, then BillForm
+  BillDetail: { id: string };
+  AddBiller: { persist?: boolean } | undefined; // category -> search -> pick a biller, then BillForm
 };

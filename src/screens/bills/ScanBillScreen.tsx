@@ -17,6 +17,11 @@ import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { BILL_CATEGORIES } from "../../constants/options";
 import { guessCategoryLabel, scanBill } from "../../api/bills";
 import { errorMessage } from "../../api/client";
+import { createSetupBill, updateBillAmounts, previewPriority, type PriorityPreview } from "../../api/edit";
+import { Check, Clock, CheckCircle2 } from "lucide-react-native";
+import { PRIORITY_STYLE } from "../../components/PriorityChip";
+import { priorityReasons } from "../../utils/priorityReasons";
+import type { BudgetBill } from "../../api/bills";
 import { publishAmount, publishBill } from "../../navigation/billBus";
 import { formatLong } from "../../utils/dates";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
@@ -37,6 +42,7 @@ type Step = "camera" | "processing" | "results";
 export default function ScanBillScreen({ navigation, route }: Props) {
   // "Scan" on Update this period's bills only needs the amount for one existing bill.
   const forBillId = route.params?.forBillId;
+  const persist = !!route.params?.persist; // opened from the tab bar's +: save the bill straight away
   const amountOnly = !!forBillId;
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -53,6 +59,25 @@ export default function ScanBillScreen({ navigation, route }: Props) {
   const [dueDate, setDueDate] = useState("");
   const [billerId, setBillerId] = useState<number | null>(null); // a recognised biller brings its own rules
   const [formError, setFormError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PriorityPreview | null>(null); // the priority this bill would get
+
+  // On the review screen, ask the backend what priority this bill would get (it runs the same rules as a saved bill).
+  useEffect(() => {
+    if (step !== "results" || amountOnly || !name.trim() || !dueDate) {
+      setPreview(null);
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      previewPriority({ name: name.trim(), category, dueDate, billerId })
+        .then((p) => live && setPreview(p))
+        .catch(() => live && setPreview(null)); // offline: the review still works without the preview
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [step, amountOnly, name, category, dueDate, billerId]);
 
   // The gold line that sweeps the frame while step === "camera" (off if the phone prefers reduced motion).
   const reduced = useReducedMotion();
@@ -120,6 +145,12 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     const amt = Number(amount.replace(/,/g, ""));
     if (!Number.isFinite(amt) || amt <= 0) return setFormError("Enter an amount greater than 0.");
 
+    if (amountOnly && forBillId && persist) {
+      updateBillAmounts([{ id: forBillId, amount: amt }])
+        .then(() => navigation.goBack())
+        .catch((e) => setFormError(errorMessage(e)));
+      return;
+    }
     if (amountOnly && forBillId) {
       publishAmount(forBillId, amt);
       navigation.goBack();
@@ -129,7 +160,7 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     if (!name.trim()) return setFormError("Enter the bill name.");
     if (!dueDate) return setFormError("Choose the due date.");
 
-    publishBill({
+    const bill = {
       name: name.trim(),
       category,
       dueDay: Number(dueDate.slice(8, 10)),
@@ -141,8 +172,16 @@ export default function ScanBillScreen({ navigation, route }: Props) {
       amount: amt,
       min: amt, // a scanned bill has one exact amount
       max: amt,
-    });
-    navigation.goBack();
+    };
+
+    if (!persist) {
+      publishBill(bill);
+      navigation.goBack();
+      return;
+    }
+    createSetupBill(bill)
+      .then(() => navigation.goBack())
+      .catch((e) => setFormError(errorMessage(e)));
   };
 
   // ---------------- STEP 2: processing ----------------
@@ -187,13 +226,23 @@ export default function ScanBillScreen({ navigation, route }: Props) {
               <DateField label="Due date" value={dueDate} onChange={setDueDate} />
             </>
           ) : (
+            <>
+            {billerId != null ? (
+              <View style={styles.recognized}>
+                <CheckCircle2 size={18} color={C.green} strokeWidth={2.2} />
+                <Text style={styles.recognizedText}>Recognized: {name}</Text>
+              </View>
+            ) : null}
             <View style={[styles.summaryCard, sh.sm]}>
               <Row label="Bill name" value={name} />
               <Row label="Category" value={category} />
               <Row label="Amount" value={fmt(Number(amount) || 0)} />
               <Row label="Due date" value={formatLong(dueDate)} last />
             </View>
+            </>
           )}
+
+          {preview && !amountOnly ? <PriorityPreviewCard preview={preview} dueDate={dueDate} /> : null}
 
           {formError ? <Text style={styles.error}>{formError}</Text> : null}
         </ScrollView>
@@ -314,7 +363,52 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
   );
 }
 
+/** "This bill will be High priority", with the reasons, before the bill is saved. */
+function PriorityPreviewCard({ preview, dueDate }: { preview: PriorityPreview; dueDate: string }) {
+  const st = PRIORITY_STYLE[preview.priority_level];
+  // a stand-in with only the fields priorityReasons reads
+  const bill = {
+    ruleApplied: preview.rule_applied,
+    hasPenalty: preview.penalty_classification,
+    graceDays: preview.grace_period_days,
+    dueDate,
+    status: "upcoming",
+    isDaily: false,
+  } as unknown as BudgetBill;
+  const reasons = priorityReasons(bill);
+
+  return (
+    <View style={[styles.previewCard, { backgroundColor: st.bg }]}>
+      <View style={styles.previewHead}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.previewLabel}>This bill will be</Text>
+          <Text style={[styles.previewValue, { color: st.fg }]}>{preview.priority_level} priority</Text>
+        </View>
+        <View style={styles.previewGroup}>
+          <Text style={[styles.previewGroupText, { color: st.fg }]}>{st.group}</Text>
+        </View>
+      </View>
+      {reasons.map((r, i) => (
+        <View key={i} style={styles.previewReason}>
+          {r.tone === "ease" ? <Check size={15} color={C.green} strokeWidth={2.4} /> : <Clock size={15} color={st.fg} strokeWidth={2.2} />}
+          <Text style={styles.previewReasonText}>{r.text}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  recognized: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.greenBg, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12 },
+  recognizedText: { fontSize: 13, fontWeight: "600", color: "#0B6B53" },
+  previewCard: { borderRadius: 22, padding: 14, marginTop: 14 },
+  previewHead: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  previewLabel: { fontSize: 12, color: C.sub },
+  previewValue: { fontSize: 20, fontWeight: "800", marginTop: 1 },
+  previewGroup: { backgroundColor: "#FFFFFFB3", borderRadius: 99, paddingHorizontal: 12, paddingVertical: 5 },
+  previewGroupText: { fontSize: 12, fontWeight: "700" },
+  previewReason: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  previewReasonText: { flex: 1, fontSize: 13, color: C.sub, lineHeight: 18 },
   processing: { flex: 1, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
   processingText: { color: "#FFF", fontSize: 15, fontWeight: "600", marginTop: 12 },
   permissionText: { color: "#FFF", fontSize: 16, fontWeight: "600", textAlign: "center", marginBottom: 6 },

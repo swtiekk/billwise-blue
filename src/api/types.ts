@@ -60,6 +60,8 @@ export interface ApiBill {
   biller_id?: number | null;
   reminder_day?: number | null;
   is_daily?: boolean;
+  is_deferred?: boolean;
+  deferred_until?: string | null;
 
   amount: string | null;
   actual_due_date: string | null; // YYYY-MM-DD

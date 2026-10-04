@@ -19,7 +19,8 @@ type Props = NativeStackScreenProps<RootStackParamList, "AddBiller">;
  * Pick who you pay, the way GCash does: categories, or search all billers.
  * Choosing one opens the enrollment form. BillWise only monitors, so there is no account number.
  */
-export default function AddBillerScreen({ navigation }: Props) {
+export default function AddBillerScreen({ navigation, route }: Props) {
+  const persist = route.params?.persist;
   const [billers, setBillers] = useState<Biller[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +40,8 @@ export default function AddBillerScreen({ navigation }: Props) {
 
   // replace(), so Save / Back on the form returns to the screen that opened "Add a biller"
   const choose = (b: Biller) =>
-    navigation.replace("BillForm", { initial: { name: b.name, category: b.category, billerId: b.biller_id } });
-  const other = (cat: string, name?: string) => navigation.replace("BillForm", { initial: { name, category: cat } });
+    navigation.replace("BillForm", { initial: { name: b.name, category: b.category, billerId: b.biller_id }, persist });
+  const other = (cat: string, name?: string) => navigation.replace("BillForm", { initial: { name, category: cat }, persist });
 
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;

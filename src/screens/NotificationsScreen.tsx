@@ -30,9 +30,9 @@ const KIND: Record<ApiNotification["type"], NotifKind> = {
   risk_alert: "risk",
 };
 
-// The backend has no timestamps, so notifications are grouped by urgency instead of "Today".
-type Group = "Needs attention" | "Coming up";
-const GROUPS: Group[] = ["Needs attention", "Coming up"];
+// The backend has no timestamps, so notifications are grouped by when the bill is due instead of "Today".
+type Group = "Needs attention" | "This week" | "Later";
+const GROUPS: Group[] = ["Needs attention", "This week", "Later"];
 
 interface Item {
   id: string;
@@ -41,7 +41,8 @@ interface Item {
   desc: string;
   time: string;
   group: Group;
-  hasBill: boolean;
+  billId?: number;
+  isRisk: boolean;
 }
 
 function dueLabel(iso?: string): string {
@@ -53,6 +54,11 @@ function dueLabel(iso?: string): string {
   return `Due in ${d} days`;
 }
 
+function groupOf(n: ApiNotification): Group {
+  if (n.type !== "upcoming") return "Needs attention"; // overdue, due soon, and risk alerts
+  return n.due_date && daysUntil(n.due_date) <= 7 ? "This week" : "Later";
+}
+
 function toItem(n: ApiNotification, index: number): Item {
   return {
     id: `${n.type}-${n.bill_id ?? "risk"}-${index}`,
@@ -60,8 +66,9 @@ function toItem(n: ApiNotification, index: number): Item {
     title: n.title,
     desc: n.message,
     time: dueLabel(n.due_date),
-    group: n.type === "upcoming" ? "Coming up" : "Needs attention",
-    hasBill: n.bill_id != null,
+    group: groupOf(n),
+    billId: n.bill_id,
+    isRisk: n.type === "risk_alert",
   };
 }
 
@@ -98,8 +105,9 @@ export default function NotificationsScreen({ navigation }: Props) {
 
   const open = (n: Item) => {
     setRead((r) => new Set(r).add(n.id));
-    // Bill reminders open the Budget tab, like a tapped push notification will.
-    if (n.hasBill) navigation.reset({ index: 0, routes: [{ name: "Budget" }] });
+    // A bill reminder opens that bill; a risk alert opens Tips, where the suggestions are.
+    if (n.billId != null) navigation.navigate("BillDetail", { id: String(n.billId) });
+    else if (n.isRisk) navigation.reset({ index: 0, routes: [{ name: "Tips" }] });
   };
 
   return (
