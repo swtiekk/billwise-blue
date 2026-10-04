@@ -11,6 +11,9 @@ export interface BillInput {
   dueDay: number; // 1-31
   graceDays: number;
   hasPenalty: boolean;
+  billerId?: number; // the enrolled biller (e.g. CEPALCO); supplies grace period and penalty rules
+  reminderDay?: number; // "remind me every month on day N" (31 = end of month)
+  isDaily?: boolean; // min / max are per day (food, fare, ...), not per month
   amount?: number; // known when it came from a scan
   dueDate?: string; // YYYY-MM-DD, known when it came from a scan
   min?: number; // expected amount range (Edit Budget Items)

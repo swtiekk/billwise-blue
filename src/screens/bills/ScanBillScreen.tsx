@@ -8,7 +8,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh, fmt } from "../../theme";
 import { GOLD } from "../../brand";
 import { Text } from "../../ui/Text";
-import { Field, Sel, Btn, Toggle } from "../../components/Atoms";
+import { Field, Sel, Btn } from "../../components/Atoms";
 import { DateField } from "../../components/DateField";
 import { Piso } from "../../components/Piso";
 import { ScreenHeader } from "../../components/ScreenHeader";
@@ -17,6 +17,11 @@ import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { BILL_CATEGORIES } from "../../constants/options";
 import { guessCategoryLabel, scanBill } from "../../api/bills";
 import { errorMessage } from "../../api/client";
+import { createSetupBill, updateBillAmounts, previewPriority, type PriorityPreview } from "../../api/edit";
+import { Check, Clock, CheckCircle2 } from "lucide-react-native";
+import { PRIORITY_STYLE } from "../../components/PriorityChip";
+import { priorityReasons } from "../../utils/priorityReasons";
+import type { BudgetBill } from "../../api/bills";
 import { publishAmount, publishBill } from "../../navigation/billBus";
 import { formatLong } from "../../utils/dates";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
@@ -37,6 +42,7 @@ type Step = "camera" | "processing" | "results";
 export default function ScanBillScreen({ navigation, route }: Props) {
   // "Scan" on Update this period's bills only needs the amount for one existing bill.
   const forBillId = route.params?.forBillId;
+  const persist = !!route.params?.persist; // opened from the tab bar's +: save the bill straight away
   const amountOnly = !!forBillId;
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -51,9 +57,27 @@ export default function ScanBillScreen({ navigation, route }: Props) {
   const [category, setCategory] = useState("Other");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [grace, setGrace] = useState("0");
-  const [penalty, setPenalty] = useState(true);
+  const [billerId, setBillerId] = useState<number | null>(null); // a recognised biller brings its own rules
   const [formError, setFormError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PriorityPreview | null>(null); // the priority this bill would get
+
+  // On the review screen, ask the backend what priority this bill would get (it runs the same rules as a saved bill).
+  useEffect(() => {
+    if (step !== "results" || amountOnly || !name.trim() || !dueDate) {
+      setPreview(null);
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      previewPriority({ name: name.trim(), category, dueDate, billerId })
+        .then((p) => live && setPreview(p))
+        .catch(() => live && setPreview(null)); // offline: the review still works without the preview
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [step, amountOnly, name, category, dueDate, billerId]);
 
   // The gold line that sweeps the frame while step === "camera" (off if the phone prefers reduced motion).
   const reduced = useReducedMotion();
@@ -75,12 +99,12 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     setScanError(null);
     try {
       const { extracted } = await scanBill(uri, name, mimeType);
-      setName(extracted.merchant ?? "");
-      setCategory(guessCategoryLabel(extracted.merchant));
+      const biller = extracted.biller ?? null;
+      setBillerId(biller?.biller_id ?? null);
+      setName(biller?.name ?? extracted.merchant ?? "");
+      setCategory(biller && BILL_CATEGORIES.includes(biller.category) ? biller.category : guessCategoryLabel(extracted.merchant));
       setAmount(extracted.amount != null ? String(extracted.amount) : "");
       setDueDate(extracted.due_date ?? "");
-      setGrace("0");
-      setPenalty(true);
       // If OCR missed something, go straight to editing so the user can fill it in.
       setEditing(amountOnly ? extracted.amount == null : !extracted.merchant || extracted.amount == null || !extracted.due_date);
       setFormError(null);
@@ -121,29 +145,43 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     const amt = Number(amount.replace(/,/g, ""));
     if (!Number.isFinite(amt) || amt <= 0) return setFormError("Enter an amount greater than 0.");
 
+    if (amountOnly && forBillId && persist) {
+      updateBillAmounts([{ id: forBillId, amount: amt }])
+        .then(() => navigation.goBack())
+        .catch((e) => setFormError(errorMessage(e)));
+      return;
+    }
     if (amountOnly && forBillId) {
       publishAmount(forBillId, amt);
       navigation.goBack();
       return;
     }
 
-    const graceN = Number(grace || "0");
     if (!name.trim()) return setFormError("Enter the bill name.");
     if (!dueDate) return setFormError("Choose the due date.");
-    if (!Number.isInteger(graceN) || graceN < 0) return setFormError("Grace period must be 0 or more days.");
 
-    publishBill({
+    const bill = {
       name: name.trim(),
       category,
       dueDay: Number(dueDate.slice(8, 10)),
       dueDate,
-      graceDays: graceN,
-      hasPenalty: penalty,
+      reminderDay: Number(dueDate.slice(8, 10)),
+      billerId: billerId ?? undefined,
+      graceDays: 0, // used only when no biller was recognised; a biller supplies its own rules
+      hasPenalty: true,
       amount: amt,
       min: amt, // a scanned bill has one exact amount
       max: amt,
-    });
-    navigation.goBack();
+    };
+
+    if (!persist) {
+      publishBill(bill);
+      navigation.goBack();
+      return;
+    }
+    createSetupBill(bill)
+      .then(() => navigation.goBack())
+      .catch((e) => setFormError(errorMessage(e)));
   };
 
   // ---------------- STEP 2: processing ----------------
@@ -186,25 +224,25 @@ export default function ScanBillScreen({ navigation, route }: Props) {
               </View>
               <Field label="Amount (₱)" value={amount} onChange={setAmount} placeholder="0.00" keyboardType="numeric" />
               <DateField label="Due date" value={dueDate} onChange={setDueDate} />
-              <Field label="Grace period (days)" value={grace} onChange={(v) => setGrace(v.replace(/\D/g, ""))} keyboardType="numeric" />
-              <View style={[styles.toggleCard, sh.sm]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.toggleLabel}>Has a penalty</Text>
-                  <Text style={styles.toggleSub}>A fee applies if it's paid late</Text>
-                </View>
-                <Toggle on={penalty} onToggle={() => setPenalty((v) => !v)} />
-              </View>
             </>
           ) : (
+            <>
+            {billerId != null ? (
+              <View style={styles.recognized}>
+                <CheckCircle2 size={18} color={C.green} strokeWidth={2.2} />
+                <Text style={styles.recognizedText}>Recognized: {name}</Text>
+              </View>
+            ) : null}
             <View style={[styles.summaryCard, sh.sm]}>
               <Row label="Bill name" value={name} />
               <Row label="Category" value={category} />
               <Row label="Amount" value={fmt(Number(amount) || 0)} />
-              <Row label="Due date" value={formatLong(dueDate)} />
-              <Row label="Grace period" value={`${grace || 0} days`} />
-              <Row label="Has a penalty" value={penalty ? "Yes" : "No"} last />
+              <Row label="Due date" value={formatLong(dueDate)} last />
             </View>
+            </>
           )}
+
+          {preview && !amountOnly ? <PriorityPreviewCard preview={preview} dueDate={dueDate} /> : null}
 
           {formError ? <Text style={styles.error}>{formError}</Text> : null}
         </ScrollView>
@@ -291,7 +329,7 @@ export default function ScanBillScreen({ navigation, route }: Props) {
         <View style={styles.hintPill}>
           <ScanLine size={15} color={scanError ? "#FFB4BF" : GOLD.light} strokeWidth={2} />
           <Text style={[styles.hintTitle, scanError ? { color: "#FFB4BF" } : null]}>
-            {scanError ?? "Align the bill within the frame"}
+            {scanError ?? "Fit the whole bill inside the frame"}
           </Text>
         </View>
         <Text style={styles.hintSub}>Works with Cepalco, Water District, Globe and more</Text>
@@ -325,7 +363,52 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
   );
 }
 
+/** "This bill will be High priority", with the reasons, before the bill is saved. */
+function PriorityPreviewCard({ preview, dueDate }: { preview: PriorityPreview; dueDate: string }) {
+  const st = PRIORITY_STYLE[preview.priority_level];
+  // a stand-in with only the fields priorityReasons reads
+  const bill = {
+    ruleApplied: preview.rule_applied,
+    hasPenalty: preview.penalty_classification,
+    graceDays: preview.grace_period_days,
+    dueDate,
+    status: "upcoming",
+    isDaily: false,
+  } as unknown as BudgetBill;
+  const reasons = priorityReasons(bill);
+
+  return (
+    <View style={[styles.previewCard, { backgroundColor: st.bg }]}>
+      <View style={styles.previewHead}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.previewLabel}>This bill will be</Text>
+          <Text style={[styles.previewValue, { color: st.fg }]}>{preview.priority_level} priority</Text>
+        </View>
+        <View style={styles.previewGroup}>
+          <Text style={[styles.previewGroupText, { color: st.fg }]}>{st.group}</Text>
+        </View>
+      </View>
+      {reasons.map((r, i) => (
+        <View key={i} style={styles.previewReason}>
+          {r.tone === "ease" ? <Check size={15} color={C.green} strokeWidth={2.4} /> : <Clock size={15} color={st.fg} strokeWidth={2.2} />}
+          <Text style={styles.previewReasonText}>{r.text}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  recognized: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.greenBg, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12 },
+  recognizedText: { fontSize: 13, fontWeight: "600", color: "#0B6B53" },
+  previewCard: { borderRadius: 22, padding: 14, marginTop: 14 },
+  previewHead: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  previewLabel: { fontSize: 12, color: C.sub },
+  previewValue: { fontSize: 20, fontWeight: "800", marginTop: 1 },
+  previewGroup: { backgroundColor: "#FFFFFFB3", borderRadius: 99, paddingHorizontal: 12, paddingVertical: 5 },
+  previewGroupText: { fontSize: 12, fontWeight: "700" },
+  previewReason: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  previewReasonText: { flex: 1, fontSize: 13, color: C.sub, lineHeight: 18 },
   processing: { flex: 1, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
   processingText: { color: "#FFF", fontSize: 15, fontWeight: "600", marginTop: 12 },
   permissionText: { color: "#FFF", fontSize: 16, fontWeight: "600", textAlign: "center", marginBottom: 6 },

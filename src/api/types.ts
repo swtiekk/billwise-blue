@@ -25,6 +25,8 @@ export interface Household {
   total_members: number;
   no_of_earners: number;
   no_of_dependents: number;
+  no_of_children: number;
+  no_of_seniors: number;
   housing_type: string;
   daily_food_expense_min: string;
   daily_food_expense_max: string;
@@ -55,6 +57,11 @@ export interface ApiBill {
   due_day?: number;
   grace_period_days?: number;
   penalty_classification?: boolean;
+  biller_id?: number | null;
+  reminder_day?: number | null;
+  is_daily?: boolean;
+  is_deferred?: boolean;
+  deferred_until?: string | null;
 
   amount: string | null;
   actual_due_date: string | null; // YYYY-MM-DD
@@ -146,6 +153,7 @@ export interface ScanResponse {
     amount: number | null;
     due_date: string | null; // YYYY-MM-DD
     merchant: string | null;
+    biller?: { biller_id: number; name: string; category: string; grace_period_days: number; has_penalty: boolean } | null;
   };
   raw_text: string;
   note: string;

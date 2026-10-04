@@ -15,6 +15,7 @@ import { buildSetupPayload, submitSetup } from "../../api/setup";
 import { saveRangesEdit } from "../../api/edit";
 import { errorMessage } from "../../api/client";
 import { monthYear } from "../../utils/dates";
+import { nextPaydayISO } from "../../utils/payday";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SetupRanges" | "EditRanges">;
@@ -30,14 +31,15 @@ export default function SetupRangesScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const combined = combinedIncome(draft.earners, bandFor);
-  const firstPayday = draft.earners.map((e) => e.nextPayday).filter(Boolean).sort()[0];
+  const firstPayday = draft.earners.map((e) => nextPaydayISO(e)).filter((d): d is string => !!d).sort()[0];
 
   const fail = (msg: string) => setError(msg);
 
   const submit = async () => {
     if (loading) return;
 
-    for (const b of draft.bills) {
+    // In setup the estimated cost is entered when each bill is enrolled; only Edit budget ranges asks again.
+    for (const b of edit ? draft.bills : []) {
       const lo = Number(b.min);
       const hi = Number(b.max);
       if (!b.min || !b.max || !Number.isFinite(lo) || !Number.isFinite(hi) || lo <= 0 || hi <= 0) {
@@ -73,8 +75,8 @@ export default function SetupRangesScreen({ navigation, route }: Props) {
   return (
     <SetupLayout
       step={edit ? undefined : 4}
-      title={edit ? "Edit budget ranges" : "How much do they cost?"}
-      subtitle="Set a minimum and maximum you expect to pay for each bill."
+      title={edit ? "Edit budget ranges" : "What do you spend each day?"}
+      subtitle={edit ? "Set a minimum and maximum you expect to pay for each bill." : "Food and transport are daily costs, so they are separate from your bills."}
       onBack={() => navigation.goBack()}
       onNext={submit}
       nextLabel={edit ? (loading ? "Saving…" : "Save changes") : loading ? "Submitting…" : "Submit setup"}
@@ -93,7 +95,7 @@ export default function SetupRangesScreen({ navigation, route }: Props) {
         </Text>
       </View>
 
-      {draft.bills.map((b) => (
+      {(edit ? draft.bills : []).map((b) => (
         <View key={b.id} style={[styles.billCard, sh.sm]}>
           <Text style={styles.billName}>{b.name}</Text>
           <View style={{ flexDirection: "row", gap: 12 }}>

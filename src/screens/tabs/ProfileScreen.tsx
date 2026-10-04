@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { View, Pressable, ScrollView, Alert, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { ChevronRight, LogOut, RefreshCw, Users, Wallet, FileText, BarChart3, Info, Lock } from "lucide-react-native";
+import { ChevronRight, LogOut, RefreshCw, Users, Wallet, FileText, BarChart3, Info, Lock, Bell } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
@@ -9,15 +9,18 @@ import { TabBar } from "../../components/TabBar";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { FontCheck } from "../../components/FontCheck";
 import { logout, displayName } from "../../api/auth";
-import { getHousehold } from "../../api/edit";
-import type { Household } from "../../api/types";
+import { fetchCurrentSetup, type CurrentSetup, type ServerEarner } from "../../api/edit";
+import { WEEKDAYS, dayLabel } from "../../constants/options";
 import { useSession } from "../../context/SessionContext";
 import { useSetup } from "../../context/SetupContext";
 import { useTextSize } from "../../context/TextSizeContext";
 import { useRisk } from "../../hooks/useRisk";
 import { useTabNav } from "../../navigation/useTabNav";
-import { sendTestReminder } from "../../notifications/reminders";
-import { monthYear, toISO } from "../../utils/dates";
+import { sendTestReminder, ensurePermission, remindersSupported, clearReminders, scheduleBillReminders } from "../../notifications/reminders";
+import { getRemindersEnabled, setRemindersEnabled } from "../../notifications/settings";
+import { fetchBills } from "../../api/bills";
+import { Toggle } from "../../components/Atoms";
+import { formatShort } from "../../utils/dates";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
@@ -37,18 +40,28 @@ function NavRow({ Icon, label, sub, onPress }: { Icon: any; label: string; sub?:
   );
 }
 
+/** "Every Saturday", "15th and End of month", "30th of the month" */
+function paydayText(e: ServerEarner): string {
+  if (e.frequency === "Weekly" && e.payday_weekday != null) return `Every ${WEEKDAYS[e.payday_weekday]}`;
+  if (e.frequency === "Twice a month" && e.payday_day_1 && e.payday_day_2) return `${dayLabel(e.payday_day_1)} and ${dayLabel(e.payday_day_2)}`;
+  if (e.payday_day_1) return `${dayLabel(e.payday_day_1)} of the month`;
+  return e.frequency;
+}
+
 export default function ProfileScreen({ navigation }: Props) {
   const { user, setUser } = useSession();
   const { reset } = useSetup();
   const { size: textSize, setSize: setTextSize } = useTextSize();
   const goTab = useTabNav();
   const { risk, refresh: refreshRisk } = useRisk();
-  const [household, setHousehold] = useState<Household | null>(null);
+  const [setup, setSetup] = useState<CurrentSetup | null>(null);
   const [showFonts, setShowFonts] = useState(false);
+  const [reminders, setReminders] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
-      getHousehold().then(setHousehold).catch(() => {});
+      fetchCurrentSetup().then(setSetup).catch(() => {});
+      getRemindersEnabled().then(setReminders);
       refreshRisk();
     }, [refreshRisk])
   );
@@ -60,6 +73,26 @@ export default function ProfileScreen({ navigation }: Props) {
     reset();
     setUser(null);
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+  };
+
+  const onToggleReminders = async () => {
+    if (reminders) {
+      setReminders(false);
+      await setRemindersEnabled(false);
+      clearReminders().catch(() => {});
+      return;
+    }
+    if (!remindersSupported()) {
+      Alert.alert("Not available in Expo Go", "Reminders can't run inside Expo Go. They work in a development build of the app.");
+      return;
+    }
+    if (!(await ensurePermission())) {
+      Alert.alert("Notifications are off", "Allow notifications for this app in your phone settings, then try again.");
+      return;
+    }
+    setReminders(true);
+    await setRemindersEnabled(true);
+    fetchBills().then((b) => scheduleBillReminders(b)).catch(() => {});
   };
 
   // Development only: fires a sample reminder in 5 seconds so you can see how it looks.
@@ -74,12 +107,16 @@ export default function ProfileScreen({ navigation }: Props) {
     }
   };
 
+  const household = setup?.household ?? null;
+  const monthlyBills = setup ? setup.bills.filter((b) => !b.is_daily) : [];
+  const earners = setup?.earners ?? [];
+
   const summary = [
-    { label: "Family members", value: household ? String(household.total_members) : "—" },
-    { label: "Earners", value: household ? String(household.no_of_earners) : "—" },
-    { label: "Housing", value: household?.housing_type || "—" },
-    { label: "This period", value: monthYear(risk?.next_payday ?? toISO(new Date())) },
+    { label: "Billers", value: setup ? String(monthlyBills.length) : "—", bg: C.primaryLt },
+    { label: "Earners", value: setup ? String(earners.length) : "—", bg: C.primaryLt },
+    { label: "Next payday", value: risk?.next_payday ? formatShort(risk.next_payday) : "—", bg: C.goldBg },
   ];
+  const paydays = earners.length ? earners.map(paydayText).join(" · ") : "Income, frequency, payday";
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -98,25 +135,49 @@ export default function ProfileScreen({ navigation }: Props) {
 
         {/* household summary */}
         <View style={styles.tiles}>
-          {summary.map((s, i) => (
-            <View key={s.label} style={[styles.tile, { backgroundColor: i === 3 ? C.goldBg : C.primaryLt }]}>
+          {summary.map((s) => (
+            <View key={s.label} style={[styles.tile, { backgroundColor: s.bg }]}>
               <Text style={styles.tileLabel}>{s.label}</Text>
               <Text style={styles.tileValue} numberOfLines={1} adjustsFontSizeToFit>{s.value}</Text>
             </View>
           ))}
         </View>
 
-        <Text style={styles.groupTitle}>Edit setup</Text>
+        <Text style={styles.groupTitle}>My setup</Text>
         <View style={[styles.group, sh.sm]}>
           <NavRow Icon={RefreshCw} label="Update this period's bills" sub="Enter this period's amounts" onPress={() => navigation.navigate("UpdateBills")} />
           <View style={styles.divider} />
-          <NavRow Icon={Users} label="Edit household" sub="Members, housing, earners" onPress={() => navigation.navigate("EditHousehold")} />
+          <NavRow
+            Icon={Users}
+            label="Household"
+            sub={household ? `${household.total_members} member${household.total_members === 1 ? "" : "s"}${household.housing_type ? ` · ${household.housing_type}` : ""}` : "Members, housing, earners"}
+            onPress={() => navigation.navigate("EditHousehold")}
+          />
           <View style={styles.divider} />
-          <NavRow Icon={Wallet} label="Edit income" sub="Income, frequency, payday" onPress={() => navigation.navigate("EditIncome")} />
+          <NavRow Icon={Wallet} label="Income and paydays" sub={paydays} onPress={() => navigation.navigate("EditIncome")} />
           <View style={styles.divider} />
-          <NavRow Icon={FileText} label="Edit budget items" sub="Add, edit or remove bills" onPress={() => navigation.navigate("EditBills")} />
+          <NavRow
+            Icon={FileText}
+            label="My billers"
+            sub={setup ? `${monthlyBills.length} enrolled` : "Add, edit or remove bills"}
+            onPress={() => navigation.navigate("EditBills")}
+          />
           <View style={styles.divider} />
-          <NavRow Icon={BarChart3} label="Edit budget ranges" sub="Min and max per bill, daily costs" onPress={() => navigation.navigate("EditRanges")} />
+          <NavRow Icon={BarChart3} label="Daily costs and ranges" sub="Food, transport, and bill ranges" onPress={() => navigation.navigate("EditRanges")} />
+        </View>
+
+        <Text style={styles.groupTitle}>Reminders</Text>
+        <View style={[styles.group, sh.sm]}>
+          <View style={styles.row}>
+            <View style={styles.rowIcon}>
+              <Bell size={19} color={C.primary} strokeWidth={1.9} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Bill reminders</Text>
+              <Text style={styles.rowSub}>{reminders ? "3 days before, 1 day before, and on the due date" : "Off. You won't get reminders."}</Text>
+            </View>
+            <Toggle on={reminders} onToggle={onToggleReminders} />
+          </View>
         </View>
 
         <Text style={styles.groupTitle}>Text size</Text>
@@ -135,14 +196,12 @@ export default function ProfileScreen({ navigation }: Props) {
           <NavRow Icon={Info} label="About BillWise" onPress={() => navigation.navigate("About")} />
           <View style={styles.divider} />
           <NavRow Icon={Lock} label="Privacy policy" onPress={() => navigation.navigate("Privacy")} />
-          <View style={styles.divider} />
-          <Pressable onPress={onLogout} style={({ pressed }) => [styles.row, pressed && { backgroundColor: "#FFF3F5" }]}>
-            <View style={[styles.rowIcon, { backgroundColor: C.redBg }]}>
-              <LogOut size={19} color={C.red} strokeWidth={1.9} />
-            </View>
-            <Text style={[styles.rowLabel, { color: C.red, fontWeight: "600" }]}>Log out</Text>
-          </Pressable>
         </View>
+
+        <Pressable onPress={onLogout} style={({ pressed }) => [styles.logout, pressed && { backgroundColor: "#FFF3F5" }]}>
+          <LogOut size={18} color={C.red} strokeWidth={2} />
+          <Text style={styles.logoutText}>Log out</Text>
+        </Pressable>
 
         <Text style={styles.footer}>BillWise v1.0.0, made for Filipino families</Text>
         {__DEV__ ? (
@@ -170,10 +229,12 @@ const styles = StyleSheet.create({
   avatarText: { color: "#FFF", fontSize: 22, fontWeight: "800" },
   name: { fontSize: 22, fontWeight: "800", color: C.text },
   email: { fontSize: 13, color: C.muted, marginTop: 2 },
-  tiles: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  tile: { width: "48.5%", borderRadius: 22, padding: 14 },
+  tiles: { flexDirection: "row", gap: 10 },
+  tile: { flex: 1, borderRadius: 22, paddingVertical: 14, paddingHorizontal: 12 },
   tileLabel: { fontSize: 12, color: C.sub },
-  tileValue: { fontSize: 20, fontWeight: "800", color: C.text, marginTop: 4 },
+  tileValue: { fontSize: 18, fontWeight: "800", color: C.text, marginTop: 4 },
+  logout: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.surface, borderRadius: 99, borderWidth: 1.5, borderColor: C.redBg, paddingVertical: 13, marginTop: 4 },
+  logoutText: { fontSize: 14, fontWeight: "700", color: C.red },
   groupTitle: { fontSize: 16, fontWeight: "700", color: C.text, marginTop: 10 },
   group: { backgroundColor: C.surface, borderRadius: 24, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },

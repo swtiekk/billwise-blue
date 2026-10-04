@@ -1,6 +1,39 @@
 export const HOUSING_TYPES = ["Own House", "Renting", "With Relatives"];
 
-export const FREQUENCIES = ["Weekly", "Bi-monthly", "Monthly"];
+export const FREQUENCIES = ["Weekly", "Twice a month", "Monthly"];
+
+/** Old saved data may say "Bi-monthly"; it always meant twice a month. */
+export function normalizeFrequency(f: string | null | undefined): string {
+  if (f && FREQUENCIES.includes(f)) return f;
+  const t = (f ?? "").toLowerCase();
+  if (t.includes("week")) return "Weekly";
+  if (t.includes("bi") || t.includes("twice") || t.includes("semi")) return "Twice a month";
+  return "Monthly";
+}
+
+// Payday schedule. Weekday numbers match the API: 0 = Monday ... 6 = Sunday.
+export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+export const END_OF_MONTH = 31;
+
+const ordinal = (n: number) => {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  return `${n}${["th", "st", "nd", "rd"][n % 10 > 3 ? 0 : n % 10]}`;
+};
+export const dayLabel = (d: number) => (d === END_OF_MONTH ? "End of month" : ordinal(d));
+export const DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => dayLabel(i + 1));
+export const dayFromLabel = (label: string) => DAY_OPTIONS.indexOf(label) + 1;
+
+export const PAYDAY_PRESETS = [
+  { label: "Kinsenas / Katapusan (15th & end of month)", days: [15, END_OF_MONTH] },
+];
+
+/** The question changes with how often the person is paid. */
+export const INCOME_QUESTION: Record<string, string> = {
+  Weekly: "How much do you receive every week?",
+  "Twice a month": "How much do you receive each payday?",
+  Monthly: "How much do you receive every month?",
+};
 
 export interface IncomeBand {
   label: string;

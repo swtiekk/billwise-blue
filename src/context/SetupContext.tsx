@@ -6,9 +6,11 @@ export interface DraftEarner {
   serverId?: number; // set when the earner already exists in the database (edit mode)
   firstName: string;
   lastName: string;
-  frequency: string; // Weekly | Bi-monthly | Monthly
-  incomeRange: string; // an INCOME_BANDS label, "" until chosen
-  nextPayday: string; // YYYY-MM-DD, "" until chosen
+  frequency: string; // Weekly | Twice a month | Monthly
+  incomeRange: string; // an INCOME_BANDS label (amount per payday), "" until chosen
+  paydayWeekday: number | null; // Weekly: 0 = Monday ... 6 = Sunday
+  payday1: number | null; // Monthly / Twice a month: day of month (31 = end of month)
+  payday2: number | null; // Twice a month: the second day
 }
 
 export interface DraftBill {
@@ -19,6 +21,9 @@ export interface DraftBill {
   dueDay: number;
   graceDays: number;
   hasPenalty: boolean;
+  billerId?: number; // enrolled biller; its rules fill in grace period and penalty
+  reminderDay?: number; // remind me every month on this day (31 = end of month)
+  isDaily?: boolean; // min / max are per day instead of per month
   amount?: number;
   dueDate?: string;
   min: string; // Setup 4 inputs (strings so they can be edited freely)
@@ -26,8 +31,8 @@ export interface DraftBill {
 }
 
 export interface SetupDraft {
-  totalMembers: string;
-  dependents: string;
+  children: string; // dependents: children
+  seniors: string; // dependents: senior citizens
   housing: string;
   earners: DraftEarner[];
   bills: DraftBill[];
@@ -36,8 +41,8 @@ export interface SetupDraft {
 }
 
 const EMPTY: SetupDraft = {
-  totalMembers: "",
-  dependents: "0",
+  children: "0",
+  seniors: "0",
   housing: "",
   earners: [],
   bills: [],
@@ -49,7 +54,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 interface SetupValue {
   draft: SetupDraft;
-  patch: (p: Partial<Pick<SetupDraft, "totalMembers" | "dependents" | "housing" | "dailyFood" | "dailyTransport">>) => void;
+  patch: (p: Partial<Pick<SetupDraft, "children" | "seniors" | "housing" | "dailyFood" | "dailyTransport">>) => void;
   addEarner: (firstName: string, lastName: string) => void;
   updateEarner: (id: string, p: Partial<DraftEarner>) => void;
   removeEarner: (id: string) => void;
@@ -73,7 +78,7 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
       ...d,
       earners: [
         ...d.earners,
-        { id: uid(), firstName, lastName, frequency: "Monthly", incomeRange: "", nextPayday: "" },
+        { id: uid(), firstName, lastName, frequency: "Monthly", incomeRange: "", paydayWeekday: null, payday1: null, payday2: null },
       ],
     }));
   }, []);
@@ -98,11 +103,14 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
           dueDay: b.dueDay,
           graceDays: b.graceDays,
           hasPenalty: b.hasPenalty,
+          billerId: b.billerId,
+          reminderDay: b.reminderDay,
+          isDaily: b.isDaily,
           amount: b.amount,
           dueDate: b.dueDate,
-          // a scanned bill already has an amount, so start the range there
-          min: b.amount != null ? String(b.amount) : "",
-          max: b.amount != null ? String(b.amount) : "",
+          // the enrollment form supplies the estimated range; a scan starts it at the scanned amount
+          min: b.min != null ? String(b.min) : b.amount != null ? String(b.amount) : "",
+          max: b.max != null ? String(b.max) : b.amount != null ? String(b.amount) : "",
         },
       ],
     }));

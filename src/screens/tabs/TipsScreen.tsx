@@ -13,8 +13,11 @@ import { useBills } from "../../hooks/useBills";
 import { useRisk } from "../../hooks/useRisk";
 import { useRecommendations } from "../../hooks/useRecommendations";
 import { useTabNav } from "../../navigation/useTabNav";
+import { setBillDeferred } from "../../api/edit";
+import { errorMessage } from "../../api/client";
 import { amountLabel } from "../../api/bills";
 import { Tip, TipKind, buildTips, projectRisk, rangeText, sortByPriority, sumBills } from "../../utils/billInsights";
+import { priorityReasons } from "../../utils/priorityReasons";
 import { STATUS } from "../../utils/statusStyle";
 import { formatShort } from "../../utils/dates";
 import type { RootStackParamList } from "../../navigation/routes";
@@ -29,7 +32,19 @@ const KIND_STYLE: Record<TipKind, { bg: string; iconBg: string; color: string }>
 };
 
 const TIP_ICON = { alert: AlertTriangle, check: CheckCircle2, info: Info, calendar: CalendarClock } as const;
-const METER = ["#12A37A", "#F2792B", "#E23D55"];
+/** Solid color for the status pill. */
+const SOLID = { STABLE: C.green, "AT RISK": C.amber, CRITICAL: C.red } as const;
+
+/** Where the pay goes. Uses the lower end of income, the same numbers the risk label uses, so they always agree. */
+function payBreakdown(risk: NonNullable<ReturnType<typeof useRisk>["risk"]>) {
+  const remaining = Number(risk.remaining_budget_min); // income (low) minus bills (high)
+  const bills = Number(risk.total_bill_allocations);
+  const daily = Number(risk.total_daily_need_min); // food and fare until payday
+  return { bills, daily, left: remaining - daily };
+}
+
+/** One short line on why a bill can wait (its first "ease" reason). */
+const whyItCanWait = (b: Parameters<typeof priorityReasons>[0]) => priorityReasons(b).find((r) => r.tone === "ease")?.text ?? null;
 
 export default function TipsScreen({ navigation }: Props) {
   const goTab = useTabNav();
@@ -56,7 +71,7 @@ export default function TipsScreen({ navigation }: Props) {
 
   const showDeferral = !!risk && (recs?.activate_deferral ?? risk.label !== "STABLE");
   const deferrable = useMemo(
-    () => sortByPriority(bills.filter((b) => b.classification === "Deferrable")).reverse(), // lowest priority first
+    () => sortByPriority(bills.filter((b) => b.classification === "Deferrable" && b.status !== "paid" && !b.isDeferred)).reverse(), // lowest priority first
     [bills]
   );
 
@@ -65,12 +80,27 @@ export default function TipsScreen({ navigation }: Props) {
   useEffect(() => {
     setPicked(Object.fromEntries(deferrable.map((b) => [b.id, true])));
   }, [deferrable]);
+  const moved = useMemo(() => bills.filter((b) => b.isDeferred && b.status !== "paid"), [bills]);
+  const [moving, setMoving] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+
+  const moveBills = async (list: typeof bills, deferred: boolean) => {
+    setMoving(true);
+    setMoveError(null);
+    try {
+      await Promise.all(list.map((b) => setBillDeferred(b.id, deferred)));
+      refreshAll();
+    } catch (e) {
+      setMoveError(errorMessage(e));
+    } finally {
+      setMoving(false);
+    }
+  };
+
   const chosen = deferrable.filter((b) => picked[b.id]);
   const freed = sumBills(chosen);
   const projected = risk && chosen.length > 0 ? STATUS[projectRisk(risk, freed.max)] : null;
 
-  const remaining = risk ? Number(risk.remaining_budget_min) : null;
-  const need = risk ? Number(risk.total_daily_need_min) : null;
   const dateText = risk?.next_payday ? formatShort(risk.next_payday) : "payday";
 
   const bubble = !risk
@@ -97,27 +127,45 @@ export default function TipsScreen({ navigation }: Props) {
 
         {riskError ? <Text style={styles.errorText}>{riskError}</Text> : null}
 
-        {/* financial sustainability status */}
+        {/* where the pay goes */}
         {status && risk ? (
-          <View style={[styles.statusCard, { backgroundColor: status.bg }]}>
-            <View style={styles.statusHead}>
-              <status.Icon size={22} color={status.fg} strokeWidth={2} />
-              <Text style={[styles.statusWord, { color: status.fg }]}>{status.label}</Text>
-            </View>
-            <Text style={[styles.statusSentence, { color: status.fg }]}>
-              {fmt(Math.round(remaining ?? 0))} left after bills. Daily costs until payday need about {fmt(Math.round(need ?? 0))}.
-            </Text>
-            <View style={styles.meter}>
-              {METER.map((color, i) => (
-                <View key={color} style={[styles.meterSeg, { backgroundColor: color, opacity: i === status.step ? 1 : 0.22 }]} />
-              ))}
-            </View>
-            <View style={styles.meterLabels}>
-              <Text style={[styles.meterLabel, { color: status.fg }]}>Stable</Text>
-              <Text style={[styles.meterLabel, { color: status.fg }]}>At risk</Text>
-              <Text style={[styles.meterLabel, { color: status.fg }]}>Critical</Text>
-            </View>
-          </View>
+          (() => {
+            const { bills: billsAmt, daily, left } = payBreakdown(risk);
+            const short = left < 0;
+            const segs = [
+              { key: "bills", label: "Bills", value: billsAmt, color: C.primary },
+              { key: "daily", label: "Food and fare until payday", value: daily, color: "#5B9BFF" },
+              { key: "left", label: "Left over", value: Math.max(left, 0), color: "#FFC533" },
+            ];
+            const total = segs.reduce((sum, x) => sum + x.value, 0);
+            return (
+              <View style={[styles.payCard, sh.sm]}>
+                <View style={styles.payHead}>
+                  <Text style={styles.payTitle}>Where your pay goes</Text>
+                  <View style={[styles.payPill, { backgroundColor: SOLID[risk.label] }]}>
+                    <Text style={styles.payPillText}>{status.label}</Text>
+                  </View>
+                </View>
+                {total > 0 ? (
+                  <View style={styles.payBar}>
+                    {segs.filter((x) => x.value > 0).map((x) => (
+                      <View key={x.key} style={{ flex: x.value, backgroundColor: x.color }} />
+                    ))}
+                  </View>
+                ) : null}
+                {segs.map((x) => (
+                  <View key={x.key} style={styles.payRow}>
+                    <View style={[styles.dot, { backgroundColor: x.color }]} />
+                    <Text style={styles.payLabel}>{x.key === "left" && short ? "Short by" : x.label}</Text>
+                    <Text style={[styles.payValue, x.key === "left" && short && { color: C.red }]}>
+                      {x.key === "left" && short ? fmt(Math.round(-left)) : fmt(Math.round(x.value))}
+                    </Text>
+                  </View>
+                ))}
+                <Text style={styles.payNote}>Based on the lower end of your income, to stay on the safe side.</Text>
+              </View>
+            );
+          })()
         ) : null}
 
         {/* bill recommendations */}
@@ -161,6 +209,7 @@ export default function TipsScreen({ navigation }: Props) {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.deferName} numberOfLines={1}>{b.name}</Text>
                           <Text style={styles.deferSub}>{b.priority ?? "Unranked"} priority, due {formatShort(b.dueDate)}</Text>
+                          {whyItCanWait(b) ? <Text style={styles.deferWhy}>Can wait: {whyItCanWait(b)}</Text> : null}
                         </View>
                         <Text style={styles.deferAmount}>{amountLabel(b)}</Text>
                       </Pressable>
@@ -177,8 +226,34 @@ export default function TipsScreen({ navigation }: Props) {
                       </View>
                     ) : null}
                   </View>
+                  {chosen.length > 0 ? (
+                    <View style={{ marginTop: 12 }}>
+                      <Btn onPress={moving ? () => {} : () => moveBills(chosen, true)}>{moving ? "Moving…" : "Move to next period"}</Btn>
+                      <Text style={styles.moveHint}>You'll pay these after payday. Their real due dates don't change.</Text>
+                    </View>
+                  ) : null}
+                  {moveError ? <Text style={styles.errorText}>{moveError}</Text> : null}
                 </>
               )}
+            </View>
+          </>
+        ) : null}
+
+        {moved.length > 0 ? (
+          <>
+            <Text style={styles.sectionTitle}>Moved to next period</Text>
+            <View style={[styles.deferCard, sh.sm]}>
+              {moved.map((b) => (
+                <View key={b.id} style={styles.deferRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.deferName} numberOfLines={1}>{b.name}</Text>
+                    <Text style={styles.deferSub}>Pay after payday · {amountLabel(b)}</Text>
+                  </View>
+                  <Pressable onPress={moving ? undefined : () => moveBills([b], false)} hitSlop={8}>
+                    <Text style={styles.undo}>Undo</Text>
+                  </Pressable>
+                </View>
+              ))}
             </View>
           </>
         ) : null}
@@ -198,14 +273,17 @@ const styles = StyleSheet.create({
   bubble: { flex: 1, backgroundColor: C.surface, borderRadius: 22, borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 13 },
   bubbleText: { fontSize: 15, fontWeight: "600", color: C.text, lineHeight: 22 },
   errorText: { color: C.red, fontSize: 12 },
-  statusCard: { borderRadius: 26, padding: 18, gap: 10 },
-  statusHead: { flexDirection: "row", alignItems: "center", gap: 8 },
-  statusWord: { fontSize: 26, fontWeight: "800" },
-  statusSentence: { fontSize: 13, lineHeight: 20 },
-  meter: { flexDirection: "row", gap: 4, marginTop: 4 },
-  meterSeg: { flex: 1, height: 10, borderRadius: 5 },
-  meterLabels: { flexDirection: "row", justifyContent: "space-between" },
-  meterLabel: { fontSize: 11, fontWeight: "500" },
+  payCard: { backgroundColor: C.surface, borderRadius: 26, padding: 18, gap: 10 },
+  payHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  payTitle: { fontSize: 16, fontWeight: "700", color: C.text },
+  payPill: { borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 },
+  payPillText: { color: "#FFF", fontSize: 12, fontWeight: "700" },
+  payBar: { flexDirection: "row", height: 14, borderRadius: 7, overflow: "hidden", gap: 2 },
+  payRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  payLabel: { flex: 1, fontSize: 13, color: C.sub },
+  payValue: { fontSize: 14, fontWeight: "700", color: C.text },
+  payNote: { fontSize: 11, color: C.muted, marginTop: 2 },
   sectionTitle: { fontSize: 18, fontWeight: "700", color: C.text, marginTop: 6 },
   tipCard: { borderRadius: 22, padding: 14, flexDirection: "row", gap: 12 },
   tipIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
@@ -218,6 +296,9 @@ const styles = StyleSheet.create({
   checkOn: { backgroundColor: C.primary, borderColor: C.primary },
   deferName: { fontSize: 14, fontWeight: "600", color: C.text },
   deferSub: { fontSize: 12, color: C.muted, marginTop: 1 },
+  moveHint: { fontSize: 11, color: C.muted, textAlign: "center", marginTop: 8 },
+  undo: { fontSize: 13, fontWeight: "700", color: C.primary },
+  deferWhy: { fontSize: 11, color: C.green, marginTop: 2 },
   deferAmount: { fontSize: 14, fontWeight: "700", color: C.text },
   result: { marginTop: 6, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#E6EEFB", gap: 8 },
   resultLabel: { fontSize: 13, fontWeight: "600", color: C.sub },
