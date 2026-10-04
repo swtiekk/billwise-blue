@@ -34,6 +34,10 @@ const HALVES: { key: Half | null; label: string }[] = [
 
 const SEGMENT_COLORS = ["#1F6FFF", "#5B9BFF", "#B9D6FF", "#DCEBFF"];
 
+// Bucket name used to group "everything not in the top 3". Must NOT collide
+// with any real category from the API (the API has "Other", so we can't use that).
+const REST_BUCKET = "Rest";
+
 export default function BudgetScreen(_props: Props) {
   const goTab = useTabNav();
   const { bills, loading, error, refresh: refreshBills } = useBills();
@@ -59,13 +63,19 @@ export default function BudgetScreen(_props: Props) {
     ({ bill }) => (filter === "all" || bill.classification === filter) && (!half || halfOf(bill) === half)
   );
 
-  // "Where it goes": the biggest categories, the rest grouped as Other
+  // "Where it goes": the biggest categories, the rest grouped as "Rest".
+  // NOTE: we deliberately use "Rest" instead of "Other" — the API already has a real
+  // category called "Other", so using the same label here would create duplicate React keys.
   const goes = useMemo(() => {
     const totals = new Map<string, number>();
     for (const b of bills) totals.set(b.categoryDesc, (totals.get(b.categoryDesc) ?? 0) + b.amountMax);
+
     const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, 3);
     const rest = sorted.slice(3).reduce((sum, [, v]) => sum + v, 0);
-    const parts: [string, number][] = rest > 0 ? [...sorted.slice(0, 3), ["Other", rest]] : sorted.slice(0, 3);
+
+    const parts: [string, number][] = rest > 0 ? [...top, [REST_BUCKET, rest]] : top;
+
     const total = parts.reduce((sum, [, v]) => sum + v, 0);
     return parts.map(([name, value], i) => ({
       name,
@@ -104,15 +114,20 @@ export default function BudgetScreen(_props: Props) {
           <View style={[styles.card, sh.sm]}>
             <Text style={styles.cardTitle}>Where it goes</Text>
             <View style={styles.bar}>
-              {goes.map((g) => (
-                <View key={g.name} style={{ flex: Math.max(g.value, 1), backgroundColor: g.color }} />
+              {goes.map((g, i) => (
+                <View
+                  key={`bar-${g.name}-${i}`}
+                  style={{ flex: Math.max(g.value, 1), backgroundColor: g.color }}
+                />
               ))}
             </View>
             <View style={styles.legend}>
-              {goes.map((g) => (
-                <View key={g.name} style={styles.legendItem}>
+              {goes.map((g, i) => (
+                <View key={`legend-${g.name}-${i}`} style={styles.legendItem}>
                   <View style={[styles.dot, { backgroundColor: g.color }]} />
-                  <Text style={styles.legendText} numberOfLines={1}>{g.name} {g.pct}%</Text>
+                  <Text style={styles.legendText} numberOfLines={1}>
+                    {g.name} {g.pct}%
+                  </Text>
                 </View>
               ))}
             </View>
@@ -152,7 +167,9 @@ export default function BudgetScreen(_props: Props) {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Piso size={40} mood="worried" />
               <Text style={styles.deferTitle}>
-                {deferrable.length > 0 ? "Your budget is tight. These can wait:" : "Your budget is tight, and no bill can wait."}
+                {deferrable.length > 0
+                  ? "Your budget is tight. These can wait:"
+                  : "Your budget is tight, and no bill can wait."}
               </Text>
             </View>
             {deferrable.map(({ bill }) => (
@@ -178,7 +195,9 @@ export default function BudgetScreen(_props: Props) {
           {visible.length === 0 && !loading ? (
             <View style={styles.empty}>
               <Piso size={64} mood="happy" />
-              <Text style={styles.emptyTitle}>{bills.length === 0 ? "No bills yet" : "No bills match this filter"}</Text>
+              <Text style={styles.emptyTitle}>
+                {bills.length === 0 ? "No bills yet" : "No bills match this filter"}
+              </Text>
             </View>
           ) : null}
         </View>
