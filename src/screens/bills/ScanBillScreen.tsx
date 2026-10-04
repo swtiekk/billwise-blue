@@ -15,11 +15,7 @@ import { ScreenHeader } from "../../components/ScreenHeader";
 import { BottomAction } from "../../components/BottomAction";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { BILL_CATEGORIES } from "../../constants/options";
-import {
-  guessCategoryLabel,
-  scanBill,
-  scanBillFromContentUri,
-} from "../../api/bills";
+import { guessCategoryLabel, scanBill } from "../../api/bills";
 import { errorMessage } from "../../api/client";
 import { createSetupBill, updateBillAmounts, previewPriority, type PriorityPreview } from "../../api/edit";
 import { Check, Clock, CheckCircle2 } from "lucide-react-native";
@@ -98,39 +94,21 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     return () => loop.stop();
   }, [step, reduced, sweep]);
 
-  /** Take a ScanResponse and drop the extracted fields into the form. */
-  const applyExtracted = (extracted: {
-    amount: number | null;
-    due_date: string | null;
-    merchant: string | null;
-    biller?: any;
-  }) => {
-    const biller = extracted.biller ?? null;
-    setBillerId(biller?.biller_id ?? null);
-    setName(biller?.name ?? extracted.merchant ?? "");
-    setCategory(
-      biller && BILL_CATEGORIES.includes(biller.category)
-        ? biller.category
-        : guessCategoryLabel(extracted.merchant)
-    );
-    setAmount(extracted.amount != null ? String(extracted.amount) : "");
-    setDueDate(extracted.due_date ?? "");
-    // If OCR missed something, go straight to editing so the user can fill it in.
-    setEditing(
-      amountOnly
-        ? extracted.amount == null
-        : !extracted.merchant || extracted.amount == null || !extracted.due_date
-    );
-    setFormError(null);
-    setStep("results");
-  };
-
   const processImage = async (uri: string, name?: string | null, mimeType?: string | null) => {
     setStep("processing");
     setScanError(null);
     try {
       const { extracted } = await scanBill(uri, name, mimeType);
-      applyExtracted(extracted);
+      const biller = extracted.biller ?? null;
+      setBillerId(biller?.biller_id ?? null);
+      setName(biller?.name ?? extracted.merchant ?? "");
+      setCategory(biller && BILL_CATEGORIES.includes(biller.category) ? biller.category : guessCategoryLabel(extracted.merchant));
+      setAmount(extracted.amount != null ? String(extracted.amount) : "");
+      setDueDate(extracted.due_date ?? "");
+      // If OCR missed something, go straight to editing so the user can fill it in.
+      setEditing(amountOnly ? extracted.amount == null : !extracted.merchant || extracted.amount == null || !extracted.due_date);
+      setFormError(null);
+      setStep("results");
     } catch (e) {
       setScanError(errorMessage(e));
       setStep("camera");
@@ -152,44 +130,15 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     if (!result.canceled && result.assets[0]?.uri) await processImage(result.assets[0].uri);
   };
 
-  // A receipt saved as a document rather than a photo: PDF, or an image from Files/Drive/etc.
-  //
-  // The picked file is uploaded with fetch + FormData (see uploadViaFetch in api/bills.ts).
-  // React Native reads the URI natively, so Expo Go's "isn't readable" path check never runs.
+  // A receipt saved as a document rather than a photo — PDF, or an image from Files/Drive/etc.
   const pickDocument = async () => {
-    setScanError(null);
-
-    let result: DocumentPicker.DocumentPickerResult;
-    try {
-      result = await DocumentPicker.getDocumentAsync({
-        type: ["application/pdf", "image/*"],
-        copyToCacheDirectory: true,
-      });
-    } catch (e) {
-      setScanError(errorMessage(e));
-      return;
-    }
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["application/pdf", "image/*"],
+      copyToCacheDirectory: true,
+    });
     if (result.canceled) return;
-
     const file = result.assets?.[0];
-    if (!file) return;
-
-    console.log("[pickDocument] uri:", file.uri);
-    console.log("[pickDocument] name:", file.name, "mime:", file.mimeType);
-
-    setStep("processing");
-    try {
-      const { extracted } = await scanBillFromContentUri(
-        file.uri,
-        file.name ?? "bill.pdf",
-        file.mimeType ?? null
-      );
-      applyExtracted(extracted);
-    } catch (e) {
-      console.log("[pickDocument] upload failed:", errorMessage(e));
-      setScanError(errorMessage(e));
-      setStep("camera");
-    }
+    if (file?.uri) await processImage(file.uri, file.name, file.mimeType);
   };
 
   const confirm = () => {
@@ -278,18 +227,18 @@ export default function ScanBillScreen({ navigation, route }: Props) {
             </>
           ) : (
             <>
-              {billerId != null ? (
-                <View style={styles.recognized}>
-                  <CheckCircle2 size={18} color={C.green} strokeWidth={2.2} />
-                  <Text style={styles.recognizedText}>Recognized: {name}</Text>
-                </View>
-              ) : null}
-              <View style={[styles.summaryCard, sh.sm]}>
-                <Row label="Bill name" value={name} />
-                <Row label="Category" value={category} />
-                <Row label="Amount" value={fmt(Number(amount) || 0)} />
-                <Row label="Due date" value={formatLong(dueDate)} last />
+            {billerId != null ? (
+              <View style={styles.recognized}>
+                <CheckCircle2 size={18} color={C.green} strokeWidth={2.2} />
+                <Text style={styles.recognizedText}>Recognized: {name}</Text>
               </View>
+            ) : null}
+            <View style={[styles.summaryCard, sh.sm]}>
+              <Row label="Bill name" value={name} />
+              <Row label="Category" value={category} />
+              <Row label="Amount" value={fmt(Number(amount) || 0)} />
+              <Row label="Due date" value={formatLong(dueDate)} last />
+            </View>
             </>
           )}
 

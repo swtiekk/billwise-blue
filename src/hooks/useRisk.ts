@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { RiskAssessment } from "../api/types";
 import { getRisk } from "../api/insights";
 import { errorMessage } from "../api/client";
@@ -8,9 +8,13 @@ export function useRisk() {
   const [risk, setRisk] = useState<RiskAssessment | null>(dataCache.risk); // last known value, refreshed quietly
   const [error, setError] = useState<string | null>(null);
 
+  const latest = useRef(0);
+
   const refresh = useCallback(async () => {
+    const mine = ++latest.current; // the newest request wins; an older, slower one is ignored
     try {
       const data = await getRisk();
+      if (mine !== latest.current) return;
       dataCache.risk = data;
       setRisk(data);
       setError(null);

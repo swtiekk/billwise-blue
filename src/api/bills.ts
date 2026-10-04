@@ -122,7 +122,8 @@ export async function fetchBills(): Promise<BudgetBill[]> {
     .map(mapBill);
 }
 
-// Small wrapper so we don't have to import `api` from client here (avoids a circular import).
+// Small wrapper so we don't have to import `api` from client here (avoids a circular import
+// after we moved the scan upload to expo-file-system).
 async function apiGetBills(): Promise<ApiBill[]> {
   const res = await fetch(`${BASE_URL}/api/bills/`, {
     headers: { Authorization: `Bearer ${await getAccessToken()}` },
@@ -135,8 +136,6 @@ async function apiGetBills(): Promise<ApiBill[]> {
 // Scanner
 // ---------------------------------------------------------------
 
-const SCAN_URL = `${BASE_URL}/api/bills/scan/`;
-
 /** Guess a MIME type from a file name when the picker doesn't supply one. */
 function guessMimeType(filename: string): string {
   if (/\.pdf$/i.test(filename)) return "application/pdf";
@@ -146,74 +145,14 @@ function guessMimeType(filename: string): string {
   return "image/jpeg";
 }
 
-/** Make a safe file name — no spaces, no odd characters, ends with the right extension. */
-function safeFileName(originalName: string): string {
-  const ext = (originalName.match(/\.[a-z0-9]+$/i)?.[0] ?? ".bin").toLowerCase();
-  return `bill-upload-${Date.now()}${ext}`;
-}
-
 /**
- * The single upload path for every scan.
+ * Upload a bill image (or PDF) to the backend OCR endpoint.
  *
- * Uses XMLHttpRequest + FormData. On Expo SDK 57, global fetch rejects RN's
- * { uri, name, type } form parts ("Unsupported FormDataPart implementation"),
- * but XHR goes through React Native's own networking, which supports them and
- * reads file:// URIs natively (so Expo Go's path check never runs).
- *
- * Do NOT set Content-Type manually: the multipart boundary is added for us.
- */
-function uploadViaFetch(
-  uri: string,
-  filename: string,
-  mimeType: string,
-  token: string | null
-): Promise<ScanResponse> {
-  return new Promise((resolve, reject) => {
-    const form = new FormData();
-    form.append("image", {
-      uri,
-      name: filename,
-      type: mimeType,
-    } as any);
-
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", SCAN_URL);
-    xhr.timeout = 60000;
-    xhr.setRequestHeader("Accept", "application/json");
-    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-
-    xhr.onload = () => {
-      const text = xhr.responseText;
-      console.log("[upload] status:", xhr.status);
-
-      if (xhr.status < 200 || xhr.status >= 300) {
-        let message = `Scan failed (${xhr.status})`;
-        try {
-          const parsed = JSON.parse(text);
-          message = parsed.error || parsed.detail || message;
-        } catch {
-          // body wasn't JSON, keep the status-code message
-        }
-        return reject(new Error(message));
-      }
-
-      try {
-        resolve(JSON.parse(text) as ScanResponse);
-      } catch {
-        reject(new Error("The server sent back something I couldn't read."));
-      }
-    };
-
-    xhr.onerror = () =>
-      reject(new Error("Network request failed. Check your connection and that the server is reachable."));
-    xhr.ontimeout = () => reject(new Error("The upload took too long. Please try again."));
-
-    xhr.send(form);
-  });
-}
-
-/**
- * Upload a bill image (or PDF) given a URI. Use for camera captures and gallery picks.
+ * Uses `expo-file-system/legacy`'s `uploadAsync` instead of RN's `fetch` + FormData.
+ * RN's FormData is unreliable for file uploads on the new Hermes + JSI architecture
+ * (throws "Unsupported FormDataPart implementation") and often mangles the multipart
+ * body. `uploadAsync` builds the multipart request natively, which is why it's the
+ * recommended approach for Expo.
  */
 export async function scanBill(
   uri: string,
@@ -222,62 +161,51 @@ export async function scanBill(
 ): Promise<ScanResponse> {
   const filename = name || uri.split("/").pop() || "bill.jpg";
   const type = mimeType || guessMimeType(filename);
+
   const token = await getAccessToken();
 
   console.log("[scanBill] uri:", uri);
   console.log("[scanBill] filename:", filename);
   console.log("[scanBill] mimeType:", type);
+  console.log("[scanBill] url:", `${BASE_URL}/api/bills/scan/`);
+  console.log("[scanBill] uploadAsync available:", typeof FileSystem.uploadAsync);
 
-  return uploadViaFetch(uri, filename, type, token);
-}
-
-/**
- * Upload a bill (image or PDF) from a DocumentPicker result (file:// or content:// URI).
- */
-export async function scanBillFromContentUri(
-  contentUri: string,
-  filename: string,
-  mimeType?: string | null
-): Promise<ScanResponse> {
-  const type = mimeType || guessMimeType(filename);
-  const token = await getAccessToken();
-
-  console.log("[scanBillFromContentUri] uri:", contentUri);
-  console.log("[scanBillFromContentUri] filename:", filename);
-  console.log("[scanBillFromContentUri] mimeType:", type);
-
-  return uploadViaFetch(contentUri, filename, type, token);
-}
-
-/**
- * Upload a bill that has ALREADY been read into a base64 string.
- *
- * Kept so existing imports still work. It writes the bytes into the app's own
- * documentDirectory (always readable), uploads that copy, then deletes it.
- */
-export async function scanBillFromBase64(
-  base64: string,
-  filename: string,
-  mimeType?: string | null
-): Promise<ScanResponse> {
-  const type = mimeType || guessMimeType(filename);
-  const token = await getAccessToken();
-
-  const copyTarget = `${FileSystem.documentDirectory}${safeFileName(filename)}`;
-  try {
-    await FileSystem.writeAsStringAsync(copyTarget, base64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-  } catch (writeErr: any) {
-    console.log("[scanBillFromBase64] write failed:", writeErr?.message);
-    throw new Error("Could not prepare the file for upload. Please try again.");
+  if (typeof FileSystem.uploadAsync !== "function") {
+    throw new Error(
+      "expo-file-system/legacy does not export uploadAsync. " +
+        "Make sure `expo-file-system` is installed and Metro was restarted with --clear."
+    );
   }
 
-  try {
-    return await uploadViaFetch(copyTarget, filename, type, token);
-  } finally {
-    FileSystem.deleteAsync(copyTarget, { idempotent: true }).catch(() => {});
+  // Use the numeric value (1 = MULTIPART). Enum names changed across SDKs; the
+  // numeric value is stable and always accepted by the underlying native call.
+  const result = await FileSystem.uploadAsync(
+    `${BASE_URL}/api/bills/scan/`,
+    uri,
+    {
+      httpMethod: "POST",
+      uploadType: 1, // FileSystemUploadType.MULTIPART
+      fieldName: "image",
+      mimeType: type,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    } as any
+  );
+
+  console.log("[scanBill] status:", result.status);
+  console.log("[scanBill] body:", result.body);
+
+  if (result.status < 200 || result.status >= 300) {
+    let message = `Scan failed (${result.status})`;
+    try {
+      const parsed = JSON.parse(result.body);
+      message = parsed.error || parsed.detail || message;
+    } catch {
+      // body wasn't JSON — keep the status-code message
+    }
+    throw new Error(message);
   }
+
+  return JSON.parse(result.body) as ScanResponse;
 }
 
 export type { BillInput };

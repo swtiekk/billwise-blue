@@ -18,4 +18,3 @@ export async function setRemindersEnabled(on: boolean): Promise<void> {
     // keep going: the toggle still works for this session
   }
 }
-  

@@ -67,7 +67,7 @@ export default function HomeScreen({ navigation }: Props) {
       const py = y.priority ? PRIORITY_ORDER[y.priority] : 3;
       return px - py || (x.dueDate ?? "9999").localeCompare(y.dueDate ?? "9999");
     })
-    .slice(0, 3);
+    .slice(0, 5);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
