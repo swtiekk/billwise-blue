@@ -1,4 +1,20 @@
-export const HOUSING_TYPES = ["Own House", "Renting", "With Relatives"];
+// Housing is only about rent: does the household pay rent or not?
+// Living in a parent's house, or owning a house (even one still being paid off with a housing loan),
+// is "Not renting". A housing loan is not rent; it is added as a Loan bill instead.
+export const HOUSING_TYPES = ["Renting", "Not renting"];
+
+/** Older saved households may still say "Own House" / "With Relatives"; both mean not renting. */
+export function normalizeHousing(h: string | null | undefined): string {
+  if (!h) return "";
+  return h === "Renting" ? "Renting" : "Not renting";
+}
+
+// A dependent is just a relationship. They are automatically dependents of the household's earners,
+// so there is no name to type and no earner to link.
+export const DEPENDENT_RELATIONSHIPS = ["Child", "Parent", "Grandparent"];
+/** Only for dependents saved before relationships were stored (older households kept just a count). */
+export const LEGACY_DEPENDENT_RELATIONSHIP = "Dependent";
+
 
 export const FREQUENCIES = ["Weekly", "Twice a month", "Monthly"];
 
@@ -63,10 +79,15 @@ export function bandForRange(range: string | null | undefined): IncomeBand | und
 }
 
 // Names line up with the keywords in classify_bill() on the backend
-// (electric / water / rent / loan / internet / subscription / groceries / shopping / entertainment).
+// (electric / water / rent / loan / internet / subscription / shopping / entertainment).
+// There is no Groceries or Gas category: food and transport are daily costs collected in setup
+// ("What do you spend each day?"), so they are not bills. A one-off purchase with no due date goes in Other.
 export const BILL_CATEGORIES = [
   "Electricity", "Water", "Rent", "Loan", "Internet", "Subscription",
-  "Groceries", "Shopping", "Entertainment", "Insurance", "Phone", "Other",
+  "Shopping", "Entertainment", "Insurance", "Phone", "Other",
 ];
+
+/** Common government and housing loans in the Philippines, offered under Loan even if the server list lacks them. */
+export const COMMON_LOAN_BILLERS = ["SSS Loan", "Pag-IBIG Loan", "GSIS Loan", "Pag-IBIG Housing Loan"];
 
 export const QUICK_ADD_CATEGORIES = ["Electricity", "Water", "Internet", "Rent", "Loan", "Phone"];

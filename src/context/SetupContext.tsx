@@ -30,10 +30,15 @@ export interface DraftBill {
   max: string;
 }
 
+/** A dependent is only a relationship. They belong to the household, so no earner needs to be picked. */
+export interface DraftDependent {
+  id: string;
+  relationship: string; // Child | Parent | Grandparent (or the legacy "Parent / grandparent")
+}
+
 export interface SetupDraft {
-  children: string; // dependents: children
-  seniors: string; // dependents: senior citizens
-  housing: string;
+  dependents: DraftDependent[];
+  housing: string; // Renting | Not renting
   earners: DraftEarner[];
   bills: DraftBill[];
   dailyFood: string;
@@ -41,8 +46,7 @@ export interface SetupDraft {
 }
 
 const EMPTY: SetupDraft = {
-  children: "0",
-  seniors: "0",
+  dependents: [],
   housing: "",
   earners: [],
   bills: [],
@@ -54,7 +58,9 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 interface SetupValue {
   draft: SetupDraft;
-  patch: (p: Partial<Pick<SetupDraft, "children" | "seniors" | "housing" | "dailyFood" | "dailyTransport">>) => void;
+  patch: (p: Partial<Pick<SetupDraft, "housing" | "dailyFood" | "dailyTransport">>) => void;
+  addDependent: (relationship: string) => void;
+  removeDependent: (id: string) => void;
   addEarner: (firstName: string, lastName: string) => void;
   updateEarner: (id: string, p: Partial<DraftEarner>) => void;
   removeEarner: (id: string) => void;
@@ -72,6 +78,14 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
   const [draft, setDraft] = useState<SetupDraft>(EMPTY);
 
   const patch = useCallback<SetupValue["patch"]>((p) => setDraft((d) => ({ ...d, ...p })), []);
+
+  const addDependent = useCallback((relationship: string) => {
+    setDraft((d) => ({ ...d, dependents: [...d.dependents, { id: uid(), relationship }] }));
+  }, []);
+
+  const removeDependent = useCallback((id: string) => {
+    setDraft((d) => ({ ...d, dependents: d.dependents.filter((x) => x.id !== id) }));
+  }, []);
 
   const addEarner = useCallback((firstName: string, lastName: string) => {
     setDraft((d) => ({
@@ -128,8 +142,8 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
   const reset = useCallback(() => setDraft(EMPTY), []);
 
   const value = useMemo(
-    () => ({ draft, patch, addEarner, updateEarner, removeEarner, addBill, updateBill, removeBill, replace, reset }),
-    [draft, patch, addEarner, updateEarner, removeEarner, addBill, updateBill, removeBill, replace, reset]
+    () => ({ draft, patch, addDependent, removeDependent, addEarner, updateEarner, removeEarner, addBill, updateBill, removeBill, replace, reset }),
+    [draft, patch, addDependent, removeDependent, addEarner, updateEarner, removeEarner, addBill, updateBill, removeBill, replace, reset]
   );
 
   return <SetupContext.Provider value={value}>{children}</SetupContext.Provider>;
@@ -139,6 +153,12 @@ export function useSetup(): SetupValue {
   const ctx = useContext(SetupContext);
   if (!ctx) throw new Error("useSetup must be used inside <SetupProvider>");
   return ctx;
+}
+
+/** What the backend stores: children, and seniors (a parent or grandparent). */
+export function dependentCounts(deps: DraftDependent[]) {
+  const children = deps.filter((d) => d.relationship === "Child").length;
+  return { children, seniors: deps.length - children };
 }
 
 /** Sum of the income bands chosen so far (per pay period). */

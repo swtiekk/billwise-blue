@@ -1,11 +1,12 @@
 import { api } from "./client";
 import { getRecommendations, getRisk } from "./insights";
 import type { Household } from "./types";
-import type { SetupDraft } from "../context/SetupContext";
+import { dependentCounts, type SetupDraft } from "../context/SetupContext";
 import { bandFor } from "../constants/options";
 
 export interface SetupPayload {
-  household: { no_of_children: number; no_of_seniors: number; housing_type: string };
+  household: { no_of_children: number; no_of_seniors: number; no_of_dependents: number; total_members: number; housing_type: string };
+  dependents: { relationship: string }[];
   earners: {
     first_name: string;
     last_name: string;
@@ -33,13 +34,24 @@ export interface SetupPayload {
   daily_transport: number;
 }
 
-export function buildSetupPayload(d: SetupDraft): SetupPayload {
+/** The household part of the payload, shared with the edit screens. */
+export function householdPayload(d: SetupDraft) {
+  const { children, seniors } = dependentCounts(d.dependents);
   return {
     household: {
-      no_of_children: Number(d.children || "0"),
-      no_of_seniors: Number(d.seniors || "0"),
+      no_of_children: children,
+      no_of_seniors: seniors,
+      no_of_dependents: d.dependents.length,
+      total_members: d.earners.length + d.dependents.length,
       housing_type: d.housing,
     },
+    dependents: d.dependents.map((x) => ({ relationship: x.relationship })),
+  };
+}
+
+export function buildSetupPayload(d: SetupDraft): SetupPayload {
+  return {
+    ...householdPayload(d),
     earners: d.earners.map((e) => ({
       first_name: e.firstName,
       last_name: e.lastName,

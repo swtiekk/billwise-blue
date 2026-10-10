@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Pressable, Alert, StyleSheet } from "react-native";
-import { Plus, Trash2, Users } from "lucide-react-native";
+import { Plus, Trash2, Users, ChevronRight } from "lucide-react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
@@ -13,16 +13,14 @@ import { useSession } from "../../context/SessionContext";
 import { useLoadDraft } from "../../hooks/useLoadDraft";
 import { saveHouseholdEdit } from "../../api/edit";
 import { errorMessage } from "../../api/client";
-import { HOUSING_TYPES } from "../../constants/options";
+import { HOUSING_TYPES, DEPENDENT_RELATIONSHIPS } from "../../constants/options";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SetupHousehold" | "EditHousehold">;
 
-const digits = (v: string) => v.replace(/\D/g, "");
-
 export default function SetupHouseholdScreen({ navigation, route }: Props) {
   const edit = route.name === "EditHousehold";
-  const { draft, patch, addEarner, removeEarner } = useSetup();
+  const { draft, patch, addEarner, removeEarner, addDependent, removeDependent } = useSetup();
   const { user } = useSession();
   const { loading, error: loadError, reload } = useLoadDraft(edit);
   const [error, setError] = useState<string | null>(null);
@@ -34,14 +32,15 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
   const [last, setLast] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
 
+  // Add Dependent sheet: the only input is the relationship
+  const [depModal, setDepModal] = useState(false);
+
   // The person who registered is automatically the first earner (setup only; edit loads saved earners).
   useEffect(() => {
     if (!edit && user && draft.earners.length === 0) addEarner(user.firstName, user.lastName);
   }, [edit, user, draft.earners.length, addEarner]);
 
-  const childCount = Number(draft.children || "0");
-  const seniorCount = Number(draft.seniors || "0");
-  const householdSize = draft.earners.length + childCount + seniorCount;
+  const householdSize = draft.earners.length + draft.dependents.length;
 
   const saveEarner = () => {
     if (!first.trim() || !last.trim()) {
@@ -68,7 +67,7 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
   };
 
   const validate = (): string | null => {
-    if (!draft.housing) return "Choose a housing type.";
+    if (!draft.housing) return "Tell us if you are renting or not.";
     if (draft.earners.length === 0) return "Add at least one earner.";
     return null;
   };
@@ -150,35 +149,59 @@ export default function SetupHouseholdScreen({ navigation, route }: Props) {
 
       <View style={{ height: 24 }} />
       <FL>Dependents</FL>
-      <Text style={styles.help}>Family members who rely on your income.</Text>
-      <Field
-        label="Children"
-        value={draft.children}
-        onChange={(v) => patch({ children: digits(v) })}
-        placeholder="e.g. 2"
-        keyboardType="numeric"
-      />
-      <Field
-        label="Senior citizens (60+)"
-        value={draft.seniors}
-        onChange={(v) => patch({ seniors: digits(v) })}
-        placeholder="e.g. 1"
-        keyboardType="numeric"
-      />
+      <Text style={styles.help}>Family members who rely on your income. Just pick their relationship to you.</Text>
+      <View style={{ gap: 10, marginBottom: 12 }}>
+        {draft.dependents.map((d) => (
+          <View key={d.id} style={[styles.earnerRow, sh.sm]}>
+            <View style={styles.avatar}>
+              <Users size={18} color={C.primary} strokeWidth={1.8} />
+            </View>
+            <Text style={styles.earnerName} numberOfLines={1}>
+              {d.relationship}
+            </Text>
+            <Pressable onPress={() => removeDependent(d.id)} hitSlop={8}>
+              <Trash2 size={18} color={C.muted} strokeWidth={1.8} />
+            </Pressable>
+          </View>
+        ))}
+      </View>
+      <Pressable onPress={() => setDepModal(true)} style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}>
+        <Plus size={18} color={C.primary} strokeWidth={2.5} />
+        <Text style={styles.addBtnText}>Add dependent</Text>
+      </Pressable>
       <Text style={styles.size}>
-        Household size: {householdSize} ({draft.earners.length} earner{draft.earners.length === 1 ? "" : "s"} + {childCount} child
-        {childCount === 1 ? "" : "ren"} + {seniorCount} senior{seniorCount === 1 ? "" : "s"})
+        Household size: {householdSize} ({draft.earners.length} earner{draft.earners.length === 1 ? "" : "s"} + {draft.dependents.length} dependent
+        {draft.dependents.length === 1 ? "" : "s"})
       </Text>
 
       <View style={{ marginTop: 20 }}>
         <Sel
-          label="Housing type"
-          value={draft.housing || "Select housing type"}
+          label="Are you renting?"
+          value={draft.housing || "Select one"}
           onChange={(v) => patch({ housing: v })}
           options={HOUSING_TYPES}
         />
-        <Text style={styles.help}>Tells us if rent or a housing payment is part of your regular bills.</Text>
+        <Text style={styles.help}>
+          Choose Not renting if you own the house or live in a relative's house. A housing loan is not rent: add it as a Loan bill instead.
+        </Text>
       </View>
+
+      <Sheet visible={depModal} onClose={() => setDepModal(false)} title="Add dependent">
+        <Text style={styles.help}>Who is this to you? They are counted under all your earners.</Text>
+        {DEPENDENT_RELATIONSHIPS.map((r) => (
+          <Pressable
+            key={r}
+            onPress={() => {
+              addDependent(r);
+              setDepModal(false);
+            }}
+            style={({ pressed }) => [styles.relRow, pressed && { opacity: 0.85 }]}
+          >
+            <Text style={styles.relText}>{r}</Text>
+            <ChevronRight size={18} color={C.muted} strokeWidth={2} />
+          </Pressable>
+        ))}
+      </Sheet>
 
       <Sheet visible={modal} onClose={() => setModal(false)} title="Add earner">
         <Field label="First name" value={first} onChange={setFirst} placeholder="Juan" />
@@ -203,5 +226,7 @@ const styles = StyleSheet.create({
   youTag: { fontSize: 12, fontWeight: "700", color: C.primary },
   size: { fontSize: 13, fontWeight: "600", color: C.text, marginTop: 4 },
   note: { fontSize: 12, color: C.muted, marginTop: 10 },
+  relRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", height: 52, borderRadius: 16, paddingHorizontal: 16, backgroundColor: C.primaryLt, marginBottom: 10 },
+  relText: { fontSize: 15, fontWeight: "600", color: C.primary },
   modalError: { color: C.red, fontSize: 13, marginBottom: 10 },
 });

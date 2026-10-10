@@ -25,6 +25,7 @@ export interface Household {
   total_members: number;
   no_of_earners: number;
   no_of_dependents: number;
+  dependents?: { relationship: string }[];
   no_of_children: number;
   no_of_seniors: number;
   housing_type: string;

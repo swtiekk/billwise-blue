@@ -19,7 +19,7 @@ export function categoryFromText(text?: string | null): BillCategory {
   if (/internet|wifi|wi-fi|broadband|fiber|converge/.test(t)) return "internet";
   if (/\brent\b|lease/.test(t)) return "rent";
   if (/insur|philhealth/.test(t)) return "insurance";
-  if (/loan|sss|pag-?ibig|bdo/.test(t)) return "loan";
+  if (/loan|sss|gsis|pag-?ibig|bdo/.test(t)) return "loan";
   if (/phone|mobile|postpaid|prepaid|globe|smart/.test(t)) return "phone";
   return "other";
 }

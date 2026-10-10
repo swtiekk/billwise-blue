@@ -7,7 +7,7 @@ import { Text } from "../../ui/Text";
 import { CategoryIcon } from "../../components/CategoryIcon";
 import { ScreenHeader } from "../../components/ScreenHeader";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
-import { BILL_CATEGORIES } from "../../constants/options";
+import { BILL_CATEGORIES, COMMON_LOAN_BILLERS } from "../../constants/options";
 import { getBillers, type Biller } from "../../api/billers";
 import { categoryFromText } from "../../api/bills";
 import { errorMessage } from "../../api/client";
@@ -38,17 +38,29 @@ export default function AddBillerScreen({ navigation, route }: Props) {
     };
   }, []);
 
+  // Common PH loans (SSS, Pag-IBIG, GSIS) are always offered under Loan, even if the server list lacks them.
+  // They get a negative id so they can never be mistaken for a real enrolled biller.
+  const allBillers: Biller[] = [
+    ...billers,
+    ...COMMON_LOAN_BILLERS.filter((n) => !billers.some((b) => b.name.toLowerCase() === n.toLowerCase())).map(
+      (name, i): Biller => ({ biller_id: -(i + 1), name, category: "Loan", city: "", grace_period_days: 0, has_penalty: true, rules_verified: false })
+    ),
+  ];
+
   // replace(), so Save / Back on the form returns to the screen that opened "Add a biller"
   const choose = (b: Biller) =>
-    navigation.replace("BillForm", { initial: { name: b.name, category: b.category, billerId: b.biller_id }, persist });
+    navigation.replace("BillForm", {
+      initial: { name: b.name, category: b.category, billerId: b.biller_id > 0 ? b.biller_id : undefined },
+      persist,
+    });
   const other = (cat: string, name?: string) => navigation.replace("BillForm", { initial: { name, category: cat }, persist });
 
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;
   const results = searching
-    ? billers.filter((b) => b.name.toLowerCase().includes(q) || b.category.toLowerCase().includes(q))
+    ? allBillers.filter((b) => b.name.toLowerCase().includes(q) || b.category.toLowerCase().includes(q))
     : category
-      ? billers.filter((b) => b.category === category)
+      ? allBillers.filter((b) => b.category === category)
       : [];
 
   return (
@@ -94,6 +106,9 @@ export default function AddBillerScreen({ navigation, route }: Props) {
                 </Pressable>
               ))}
             </View>
+            <Text style={styles.hint}>
+              Food and transport are daily costs, so they are not billers. For a purchase with no due date, choose Other.
+            </Text>
           </>
         ) : (
           <>
@@ -145,6 +160,7 @@ const styles = StyleSheet.create({
   row: { backgroundColor: C.surface, borderRadius: 22, padding: 12, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
   rowName: { fontSize: 15, fontWeight: "600", color: C.text },
   rowSub: { fontSize: 12, color: C.muted, marginTop: 2 },
+  hint: { fontSize: 12, color: C.muted, marginTop: 16, lineHeight: 18 },
   empty: { fontSize: 13, color: C.muted, marginVertical: 12, textAlign: "center" },
   error: { color: C.red, fontSize: 13, marginBottom: 8 },
 });

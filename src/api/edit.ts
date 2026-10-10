@@ -2,7 +2,8 @@ import { api } from "./client";
 import type { ApiBill, Household } from "./types";
 import type { SetupDraft } from "../context/SetupContext";
 import type { BillInput } from "../navigation/billBus";
-import { bandFor, bandForRange, normalizeFrequency } from "../constants/options";
+import { bandFor, bandForRange, normalizeFrequency, normalizeHousing, LEGACY_DEPENDENT_RELATIONSHIP } from "../constants/options";
+import { householdPayload } from "./setup";
 import { parseRange } from "./bills";
 
 // ---------------------------------------------------------------- read
@@ -36,9 +37,11 @@ const num = (v: string | number | null | undefined) => String(Number(v ?? 0));
 export function toDraft(s: CurrentSetup): SetupDraft {
   const h = s.household;
   return {
-    children: String(h.no_of_children ?? 0),
-    seniors: String(h.no_of_seniors ?? 0),
-    housing: h.housing_type || "",
+    // The server returns each dependent's relationship. Older households only have a count.
+    dependents: h.dependents?.length
+      ? h.dependents.map((d, i) => ({ id: `d${i}`, relationship: d.relationship }))
+      : Array.from({ length: h.no_of_dependents ?? 0 }, (_, i) => ({ id: `d${i}`, relationship: LEGACY_DEPENDENT_RELATIONSHIP })),
+    housing: normalizeHousing(h.housing_type),
     earners: s.earners.map((e) => ({
       id: `e${e.earner_id}`,
       serverId: e.earner_id,
@@ -78,11 +81,7 @@ export function toDraft(s: CurrentSetup): SetupDraft {
 
 export const saveHouseholdEdit = (d: SetupDraft) =>
   api.put("/api/setup/household/", {
-    household: {
-      no_of_children: Number(d.children || "0"),
-      no_of_seniors: Number(d.seniors || "0"),
-      housing_type: d.housing,
-    },
+    ...householdPayload(d),
     earners: d.earners.map((e) => ({
       earner_id: e.serverId ?? null,
       first_name: e.firstName,

@@ -19,6 +19,7 @@ export function Field({
   placeholder,
   keyboardType = "default",
   secureTextEntry = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -26,6 +27,8 @@ export function Field({
   placeholder?: string;
   keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
   secureTextEntry?: boolean;
+  /** Shown under the input in red, and turns the border red. Put the message on the field that is wrong. */
+  error?: string | null;
 }) {
   const scale = useTextScale() * BASE_TEXT_SCALE;
   return (
@@ -39,8 +42,9 @@ export function Field({
         secureTextEntry={secureTextEntry}
         placeholderTextColor="#9DB0D6"
         maxFontSizeMultiplier={MAX_SYSTEM_FONT_MULTIPLIER}
-        style={[styles.input, { fontFamily: FONT.regular, fontSize: 15 * scale }]}
+        style={[styles.input, error ? styles.inputError : null, { fontFamily: FONT.regular, fontSize: 15 * scale }]}
       />
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
     </View>
   );
 }
@@ -146,6 +150,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     color: C.text,
     backgroundColor: "#FFF",
+  },
+  inputError: {
+    borderColor: C.red,
+  },
+  fieldError: {
+    fontSize: 12,
+    color: C.red,
+    marginTop: 6,
   },
   select: {
     height: 46,

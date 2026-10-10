@@ -26,34 +26,38 @@ export default function SignupScreen({ navigation }: Props) {
   const [confirm, setConfirm] = useState("");
   const [agreed, setAgreed] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // only for things that belong to no single field
+
+  // One message per field, shown right under the field that is wrong.
+  type FieldKey = "firstName" | "lastName" | "email" | "pass" | "confirm" | "agreed";
+  const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
+
+  /** Edit a field and clear only that field's error. */
+  const edit = (key: FieldKey, set: (v: string) => void) => (v: string) => {
+    set(v);
+    setError(null);
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+  };
+
+  const validate = () => {
+    const next: Partial<Record<FieldKey, string>> = {};
+    if (!firstName.trim()) next.firstName = "Enter your first name.";
+    if (!lastName.trim()) next.lastName = "Enter your last name.";
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) next.email = "Enter a valid email address.";
+    if (pass.length < 8) next.pass = "Password must be at least 8 characters.";
+    if (!confirm) next.confirm = "Re-enter your password.";
+    else if (pass !== confirm) next.confirm = "Passwords don't match.";
+    if (!agreed) next.agreed = "Please accept the Terms of Service to continue.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   const submit = async () => {
     if (loading) return;
-
-    if (!firstName.trim() || !lastName.trim()) {
-      setError("Enter your first and last name.");
-      return;
-    }
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
-      setError("Enter a valid email address.");
-      return;
-    }
-    if (pass.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-    if (pass !== confirm) {
-      setError("Passwords don't match.");
-      return;
-    }
-    if (!agreed) {
-      setError("Please accept the Terms of Service to continue.");
-      return;
-    }
+    setError(null);
+    if (!validate()) return;
 
     setLoading(true);
-    setError(null);
     try {
       const user = await register({ firstName, lastName, email, password: pass });
       clearDataCache();
@@ -61,7 +65,11 @@ export default function SignupScreen({ navigation }: Props) {
       reset();
       navigation.reset({ index: 0, routes: [{ name: "SetupHousehold" }] }); // new user -> Setup 1
     } catch (e) {
-      setError(errorMessage(e));
+      const msg = errorMessage(e);
+      // Put a server error on the field it is about (e.g. "email already registered").
+      if (/e-?mail/i.test(msg)) setErrors({ email: msg });
+      else if (/password/i.test(msg)) setErrors({ pass: msg });
+      else setError(msg);
       setLoading(false);
     }
   };
@@ -81,14 +89,20 @@ export default function SignupScreen({ navigation }: Props) {
         <Text style={styles.sub}>Join thousands of Filipino families managing bills smartly.</Text>
       </View>
 
-      <Field label="First name" value={firstName} onChange={setFirstName} placeholder="Juan" />
-      <Field label="Last name" value={lastName} onChange={setLastName} placeholder="dela Cruz" />
-      <Field label="Email address" value={email} onChange={setEmail} placeholder="juan@email.com" keyboardType="email-address" />
-      <Field label="Password" value={pass} onChange={setPass} placeholder="At least 8 characters" secureTextEntry />
-      <Field label="Confirm password" value={confirm} onChange={setConfirm} placeholder="Re-enter your password" secureTextEntry />
+      <Field label="First name" value={firstName} onChange={edit("firstName", setFirstName)} placeholder="Juan" error={errors.firstName} />
+      <Field label="Last name" value={lastName} onChange={edit("lastName", setLastName)} placeholder="dela Cruz" error={errors.lastName} />
+      <Field label="Email address" value={email} onChange={edit("email", setEmail)} placeholder="juan@email.com" keyboardType="email-address" error={errors.email} />
+      <Field label="Password" value={pass} onChange={edit("pass", setPass)} placeholder="At least 8 characters" secureTextEntry error={errors.pass} />
+      <Field label="Confirm password" value={confirm} onChange={edit("confirm", setConfirm)} placeholder="Re-enter your password" secureTextEntry error={errors.confirm} />
 
-      <Pressable onPress={() => setAgreed((a) => !a)} style={styles.agreeRow}>
-        <View style={[styles.checkbox, { backgroundColor: agreed ? C.primary : "#FFF", borderColor: agreed ? C.primary : "#C9DBFA" }]}>
+      <Pressable
+        onPress={() => {
+          setAgreed((a) => !a);
+          setErrors((prev) => (prev.agreed ? { ...prev, agreed: undefined } : prev));
+        }}
+        style={styles.agreeRow}
+      >
+        <View style={[styles.checkbox, { backgroundColor: agreed ? C.primary : "#FFF", borderColor: agreed ? C.primary : errors.agreed ? C.red : "#C9DBFA" }]}>
           {agreed && <Check size={13} color="#FFF" strokeWidth={3} />}
         </View>
         <Text style={styles.agreeText}>
@@ -96,6 +110,7 @@ export default function SignupScreen({ navigation }: Props) {
         </Text>
       </Pressable>
 
+      {errors.agreed ? <Text style={styles.error}>{errors.agreed}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={{ marginTop: 8 }}>
