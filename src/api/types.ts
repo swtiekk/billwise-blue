@@ -43,6 +43,10 @@ export type RuleApplied =
   | "Rule 3"
   | "Rule 4a"
   | "Rule 4b"
+  | "Rule 2 (out of period)"
+  | "Rule 2 extension (no penalty)"
+  | "Rule 3 (no grace)"
+  | "Rule 3 (no penalty)"
   | "Fallback"
   | null;
 
@@ -150,12 +154,21 @@ export interface NotificationsResponse {
 // POST /api/bills/scan/
 export interface ScanResponse {
   message: string;
+  source_type?: "pdf" | "image";
   extracted: {
     amount: number | null;
     due_date: string | null; // YYYY-MM-DD
     merchant: string | null;
-    biller?: { biller_id: number; name: string; category: string; grace_period_days: number; has_penalty: boolean } | null;
+    biller?: {
+      biller_id: number;
+      name: string;
+      category: string;
+      grace_period_days: number;
+      has_penalty: boolean;
+    } | null;
   };
-  raw_text: string;
-  note: string;
+  raw_text?: string;   // what Tesseract / PDF text extraction produced (debugging)
+  method?: "pdf_text" | "pdf_text+ocr" | "ocr";
+  confidence?: number; // 0-100, OCR confidence
+  note?: string;
 }

@@ -1,3 +1,4 @@
+import * as FileSystem from "expo-file-system/legacy";
 import { BASE_URL } from "./client";
 import { getAccessToken } from "./tokenStorage";
 import type { ApiBill, ScanResponse, RuleApplied } from "./types";
@@ -197,6 +198,17 @@ function uploadViaXhr(
     xhr.onerror = () =>
       reject(new Error("Network request failed. Check your connection and that the server is reachable."));
     xhr.ontimeout = () => reject(new Error("The upload took too long. Please try again."));
+
+    // Log the actual file size so we can verify the phone isn't uploading a
+    // downsampled thumbnail instead of the full-resolution photo. This runs
+    // in parallel with the upload; the log appears in Metro once it resolves.
+    FileSystem.getInfoAsync(uri)
+      .then((info: any) => {
+        console.log("[uploadViaXhr] file size:", info?.size ?? "unknown", "bytes");
+      })
+      .catch(() => {
+        console.log("[uploadViaXhr] could not read file size for", uri);
+      });
 
     xhr.send(form);
   });
