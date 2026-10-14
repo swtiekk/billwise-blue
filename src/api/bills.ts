@@ -145,6 +145,30 @@ function guessMimeType(filename: string): string {
 }
 
 /**
+ * Print the OCR response in a way that's easy to read in the Metro terminal:
+ * the extracted fields one per line, then the raw OCR text wrapped in markers.
+ */
+function logScanResponse(status: number, bodyText: string) {
+  console.log("[scanBill] status:", status);
+  try {
+    const parsed = JSON.parse(bodyText);
+    console.log("[scanBill] extracted:", {
+      amount: parsed?.extracted?.amount ?? null,
+      due_date: parsed?.extracted?.due_date ?? null,
+      merchant: parsed?.extracted?.merchant ?? null,
+    });
+    console.log("[scanBill] method:", parsed?.method ?? parsed?.source_type ?? "?", 
+                "confidence:", parsed?.confidence ?? "?");
+    console.log("[scanBill] raw_text START >>>");
+    console.log(parsed?.raw_text ?? "(no raw_text)");
+    console.log("[scanBill] raw_text END <<<");
+  } catch {
+    // Not JSON — just print whatever came back
+    console.log("[scanBill] body (non-JSON):", bodyText);
+  }
+}
+
+/**
  * Upload via XMLHttpRequest + FormData.
  *
  * Why not the other options:
@@ -174,8 +198,7 @@ function uploadViaXhr(
 
     xhr.onload = () => {
       const text = xhr.responseText;
-      console.log("[scanBill] status:", xhr.status);
-      console.log("[scanBill] body:", text);
+      logScanResponse(xhr.status, text);
 
       if (xhr.status < 200 || xhr.status >= 300) {
         let message = `Scan failed (${xhr.status})`;

@@ -28,6 +28,11 @@ import type { RootStackParamList } from "../../navigation/routes";
 type Props = NativeStackScreenProps<RootStackParamList, "ScanBill">;
 type Step = "camera" | "processing" | "results";
 
+// Correct way to reference media types in expo-image-picker (SDK 50+).
+// The string-literal array form ["images"] silently fails and returns
+// { canceled: true } even after the user confirms a photo.
+const IMAGES_ONLY: ImagePicker.MediaType[] = ["images"];
+
 export default function ScanBillScreen({ navigation, route }: Props) {
   const forBillId = route.params?.forBillId;
   const persist = !!route.params?.persist;
@@ -102,60 +107,96 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     }
   };
 
-  // Uses the phone's native camera app — much more reliable than a custom
-  // in-app CameraView, and the same approach used by GCash / Maya / banks.
+  // Uses the phone's native camera app. The checkmark on the camera review
+  // screen returns the asset — but only if `mediaTypes` is passed correctly.
   const capture = async () => {
+    console.log("[capture] tapped");
     setScanError(null);
+
     try {
       const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+      console.log("[capture] permission granted:", camPerm.granted);
       if (!camPerm.granted) {
         setScanError("Camera permission is required to scan a bill.");
         return;
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ["images"],
+        mediaTypes: IMAGES_ONLY,
         quality: 1.0,
         exif: true,
         allowsEditing: false,
       });
 
-      if (result.canceled) return;
+      console.log("[capture] picker returned canceled:", result.canceled);
+
+      if (result.canceled) {
+        setScanError("No photo was captured. Please try again.");
+        return;
+      }
+
       const asset = result.assets?.[0];
-      if (!asset?.uri) return;
+      if (!asset?.uri) {
+        setScanError("No photo was returned. Please try again.");
+        return;
+      }
 
       console.log("[capture] system camera uri:", asset.uri);
       console.log("[capture] width x height:", asset.width, "x", asset.height);
 
       await processImage(asset.uri);
-    } catch (e) {
+    } catch (e: any) {
+      console.log("[capture] threw:", e?.message ?? String(e));
       setScanError(errorMessage(e));
     }
   };
 
   const pickFromGallery = async () => {
+    console.log("[gallery] tapped");
     setScanError(null);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 1.0,
-      exif: true,
-    });
-    if (!result.canceled && result.assets[0]?.uri) {
-      console.log("[gallery] uri:", result.assets[0].uri);
-      console.log("[gallery] width x height:", result.assets[0].width, "x", result.assets[0].height);
-      await processImage(result.assets[0].uri);
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: IMAGES_ONLY,
+        quality: 1.0,
+        exif: true,
+      });
+
+      console.log("[gallery] picker returned canceled:", result.canceled);
+
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset?.uri) return;
+
+      console.log("[gallery] uri:", asset.uri);
+      console.log("[gallery] width x height:", asset.width, "x", asset.height);
+
+      await processImage(asset.uri);
+    } catch (e: any) {
+      console.log("[gallery] threw:", e?.message ?? String(e));
+      setScanError(errorMessage(e));
     }
   };
 
   const pickDocument = async () => {
+    console.log("[document] tapped");
     setScanError(null);
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["application/pdf", "image/*"],
-      copyToCacheDirectory: true,
-    });
-    if (result.canceled) return;
-    const file = result.assets?.[0];
-    if (file?.uri) await processImage(file.uri, file.name, file.mimeType);
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "image/*"],
+        copyToCacheDirectory: true,
+      });
+
+      console.log("[document] picker returned canceled:", result.canceled);
+
+      if (result.canceled) return;
+      const file = result.assets?.[0];
+      if (file?.uri) await processImage(file.uri, file.name, file.mimeType);
+    } catch (e: any) {
+      console.log("[document] threw:", e?.message ?? String(e));
+      setScanError(errorMessage(e));
+    }
   };
 
   const confirm = () => {
@@ -201,7 +242,6 @@ export default function ScanBillScreen({ navigation, route }: Props) {
       .catch((e) => setFormError(errorMessage(e)));
   };
 
-  // ── STEP 2: processing ──
   if (step === "processing") {
     return (
       <View style={styles.processing}>
@@ -213,7 +253,6 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     );
   }
 
-  // ── STEP 3: results ──
   if (step === "results") {
     return (
       <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -301,7 +340,6 @@ export default function ScanBillScreen({ navigation, route }: Props) {
     );
   }
 
-  // ── STEP 1: choose how to scan ──
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <FocusedStatusBar style="dark" />
@@ -321,7 +359,7 @@ export default function ScanBillScreen({ navigation, route }: Props) {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.bigTitle}>Take a photo</Text>
-            <Text style={styles.bigSub}>Use the phone's camera — recommended</Text>
+            <Text style={styles.bigSub}>Use the phone's camera</Text>
           </View>
         </Pressable>
 
