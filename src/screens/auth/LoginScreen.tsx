@@ -1,18 +1,23 @@
-import React, { useState } from "react";
-import { View, Pressable, ScrollView, Alert, KeyboardAvoidingView, StyleSheet } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Pressable, ScrollView, KeyboardAvoidingView, StyleSheet } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
 import { Field, Btn } from "../../components/Atoms";
 import { BrandMark } from "../../components/BrandMark";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
-import { login } from "../../api/auth";
+import { login, sendGoogleOtp } from "../../api/auth";
 import { errorMessage } from "../../api/client";
 import { useSession } from "../../context/SessionContext";
 import { useSetup } from "../../context/SetupContext";
 import { clearDataCache } from "../../hooks/dataCache";
 import type { RootStackParamList } from "../../navigation/routes";
+
+// Required for the web browser to close automatically on mobile
+WebBrowser.maybeCompleteAuthSession();
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
@@ -34,6 +39,47 @@ export default function LoginScreen({ navigation }: Props) {
   const [pass, setPass] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ✅ YOUR ACTUAL CLIENT ID & EXPO GO REDIRECT
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    webClientId: "799214587974-8fq3us7rhqf1ljb5mjrusc8epnq8rq91.apps.googleusercontent.com",
+    androidClientId: "799214587974-8fq3us7rhqf1ljb5mjrusc8epnq8rq91.apps.googleusercontent.com", 
+    redirectUri: "https://auth.expo.io/@anonymous/billwise-blue",
+  });
+
+  useEffect(() => {
+    if (response?.type === "success") {
+      const { authentication } = response;
+      if (authentication?.accessToken) {
+        // Fetch the user's email using the Google Access Token
+        fetch("https://www.googleapis.com/userinfo/v2/me", {
+          headers: { Authorization: `Bearer ${authentication.accessToken}` },
+        })
+          .then((res) => res.json())
+          .then(async (data) => {
+            setLoading(true);
+            try {
+              // Send email to backend to trigger the OTP email
+              await sendGoogleOtp(data.email);
+              // Navigate to the OTP screen, passing the email
+              navigation.navigate("GoogleOtp", { email: data.email });
+            } catch (e) {
+              setError(errorMessage(e));
+            } finally {
+              setLoading(false);
+            }
+          })
+          .catch(() => setError("Failed to get Google profile."));
+      }
+    } else if (response?.type === "error") {
+      setError(`Google login failed: ${response.error?.message || "Unknown error"}`);
+    }
+  }, [response]);
+
+  const handleGoogleLogin = async () => {
+    setError(null);
+    await promptAsync();
+  };
 
   const submit = async () => {
     if (loading) return;
@@ -86,7 +132,8 @@ export default function LoginScreen({ navigation }: Props) {
         </View>
 
         <Pressable
-          onPress={() => Alert.alert("Coming soon", "Google sign-in isn't available yet.")}
+          disabled={!request || loading}
+          onPress={handleGoogleLogin}
           style={({ pressed }) => [styles.googleBtn, sh.sm, pressed && { opacity: 0.85 }]}
         >
           <GoogleIcon />

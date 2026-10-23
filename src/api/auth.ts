@@ -86,3 +86,35 @@ export async function resolveStart(): Promise<{ route: StartRoute; user: Session
     return { route: "Home", user: null }; // probably offline: Home shows its own error
   }
 }
+
+// ---------------------------------------------------------------
+// Google OTP Authentication
+// ---------------------------------------------------------------
+
+/**
+ * Sends the user's Google email to the backend to trigger an OTP email.
+ */
+export async function sendGoogleOtp(email: string): Promise<{ message: string }> {
+  return api.post(
+    "/api/auth/google/",
+    { email: email.trim().toLowerCase() },
+    { auth: false }
+  );
+}
+
+/**
+ * Verifies the OTP the user received in their email.
+ * If successful, saves the JWTs and returns the SessionUser.
+ */
+export async function verifyGoogleOtp(email: string, otp: string): Promise<SessionUser> {
+  const res = await api.post<AuthResponse>(
+    "/api/auth/google/verify-otp/",
+    { 
+      email: email.trim().toLowerCase(), 
+      otp: otp.trim() 
+    },
+    { auth: false }
+  );
+  await saveTokens(res.tokens.access, res.tokens.refresh);
+  return fetchSessionUser();
+}
