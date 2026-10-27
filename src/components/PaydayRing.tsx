@@ -39,7 +39,7 @@ export function PaydayRing({
       toValue: target,
       duration: reduced ? 0 : duration,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: false, // SVG props can't use the native driver
+      useNativeDriver: false, // ✅ SVG props can't use the native driver
     }).start();
   }, [target, duration, reduced, filled]);
 

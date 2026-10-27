@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { Platform } from "react-native";
 import { navigationRef } from "../navigation/navigationRef";
 import { useSession } from "../context/SessionContext";
 import { getNotifications } from "./native";
@@ -10,6 +11,9 @@ import { getNotifications } from "./native";
  * Renders nothing in Expo Go, where reminders are unavailable.
  */
 export function NotificationHandler() {
+  // Web browsers do not support native push notifications, so we skip this entirely.
+  if (Platform.OS === "web") return null;
+
   return getNotifications() ? <Handler /> : null;
 }
 

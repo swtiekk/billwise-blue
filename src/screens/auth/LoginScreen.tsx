@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { View, Pressable, ScrollView, KeyboardAvoidingView, StyleSheet } from "react-native";
+import { View, Pressable, ScrollView, KeyboardAvoidingView, StyleSheet, Platform } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
+import { makeRedirectUri } from "expo-auth-session"; // ✅ Added this import
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
@@ -16,7 +17,7 @@ import { useSetup } from "../../context/SetupContext";
 import { clearDataCache } from "../../hooks/dataCache";
 import type { RootStackParamList } from "../../navigation/routes";
 
-// Required for the web browser to close automatically on mobile
+// Required for the web browser to close automatically
 WebBrowser.maybeCompleteAuthSession();
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
@@ -40,11 +41,16 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ YOUR ACTUAL CLIENT ID & EXPO GO REDIRECT
+  // ✅ Let Expo automatically format the exact URI it needs
+  const redirectUri = makeRedirectUri({
+    scheme: "billwise-blue",
+    path: "expo-auth-session",
+  });
+
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: "799214587974-8fq3us7rhqf1ljb5mjrusc8epnq8rq91.apps.googleusercontent.com",
-    androidClientId: "799214587974-8fq3us7rhqf1ljb5mjrusc8epnq8rq91.apps.googleusercontent.com", 
-    redirectUri: "https://auth.expo.io/@anonymous/billwise-blue",
+    androidClientId: "799214587974-8fq3us7rhqf1ljb5mjrusc8epnq8rq91.apps.googleusercontent.com",
+    redirectUri: Platform.OS === "web" ? redirectUri : "https://auth.expo.io/@anonymous/billwise-blue",
   });
 
   useEffect(() => {
