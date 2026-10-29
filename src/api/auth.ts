@@ -29,10 +29,29 @@ export async function fetchSessionUser(): Promise<SessionUser> {
   return toUser(await api.get<Household>("/api/household/"));
 }
 
-export async function login(email: string, password: string): Promise<SessionUser> {
-  const res = await api.post<AuthResponse>(
+/**
+ * STEP 1 of Login: Send credentials to backend to trigger the OTP email.
+ * Returns the response so the frontend can grab the challenge_id.
+ */
+export async function login(email: string, password: string): Promise<any> {
+  return api.post(
     "/api/auth/login/",
     { email: email.trim().toLowerCase(), password },
+    { auth: false }
+  );
+}
+
+/**
+ * STEP 2 of Login: Verify the OTP using the challenge_id sent by the backend.
+ * Saves tokens and returns the user.
+ */
+export async function verifyLoginOtp(challengeId: string, otp: string): Promise<SessionUser> {
+  const res = await api.post<AuthResponse>(
+    "/api/auth/login/verify-otp/",
+    { 
+      challenge_id: challengeId, 
+      otp: otp.trim() 
+    },
     { auth: false }
   );
   await saveTokens(res.tokens.access, res.tokens.refresh);
@@ -56,7 +75,7 @@ export async function register(input: {
     { auth: false }
   );
   await saveTokens(res.tokens.access, res.tokens.refresh);
-  return toUser(res); // brand-new account: setupCompleted is false
+  return toUser(res);
 }
 
 /** Never throws: local tokens are always cleared, server blacklist is best-effort. */
@@ -65,10 +84,10 @@ export async function logout(): Promise<void> {
     const refresh = await getRefreshToken();
     if (refresh) await api.post("/api/auth/logout/", { refresh_token: refresh }, { auth: false });
   } catch {
-    // ignore: the user is logging out either way
+    // ignore
   }
   await clearTokens();
-  await clearReminders(); // no reminders for a logged-out account
+  await clearReminders();
 }
 
 export type StartRoute = "Login" | "Home" | "SetupHousehold";
@@ -83,7 +102,7 @@ export async function resolveStart(): Promise<{ route: StartRoute; user: Session
     return { route: user.setupCompleted ? "Home" : "SetupHousehold", user };
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) return { route: "Login", user: null };
-    return { route: "Home", user: null }; // probably offline: Home shows its own error
+    return { route: "Home", user: null };
   }
 }
 
@@ -92,25 +111,25 @@ export async function resolveStart(): Promise<{ route: StartRoute; user: Session
 // ---------------------------------------------------------------
 
 /**
- * Sends the user's Google email to the backend to trigger an OTP email.
+ * Sends the Google ID token to the backend to trigger an OTP email.
+ * Returns the response so the frontend can grab the challenge_id.
  */
-export async function sendGoogleOtp(email: string): Promise<{ message: string }> {
+export async function sendGoogleOtp(googleToken: string): Promise<any> {
   return api.post(
     "/api/auth/google/",
-    { email: email.trim().toLowerCase() },
+    { google_token: googleToken },
     { auth: false }
   );
 }
 
 /**
- * Verifies the OTP the user received in their email.
- * If successful, saves the JWTs and returns the SessionUser.
+ * Verifies the OTP using the challenge_id sent by the backend.
  */
-export async function verifyGoogleOtp(email: string, otp: string): Promise<SessionUser> {
+export async function verifyGoogleOtp(challengeId: string, otp: string): Promise<SessionUser> {
   const res = await api.post<AuthResponse>(
     "/api/auth/google/verify-otp/",
     { 
-      email: email.trim().toLowerCase(), 
+      challenge_id: challengeId, 
       otp: otp.trim() 
     },
     { auth: false }

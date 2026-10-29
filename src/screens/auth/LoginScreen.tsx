@@ -3,7 +3,7 @@ import { View, Pressable, ScrollView, KeyboardAvoidingView, StyleSheet, Platform
 import Svg, { Path } from "react-native-svg";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
-import { makeRedirectUri } from "expo-auth-session"; // ✅ Added this import
+import { makeRedirectUri } from "expo-auth-session";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
@@ -12,9 +12,6 @@ import { BrandMark } from "../../components/BrandMark";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { login, sendGoogleOtp } from "../../api/auth";
 import { errorMessage } from "../../api/client";
-import { useSession } from "../../context/SessionContext";
-import { useSetup } from "../../context/SetupContext";
-import { clearDataCache } from "../../hooks/dataCache";
 import type { RootStackParamList } from "../../navigation/routes";
 
 // Required for the web browser to close automatically
@@ -34,14 +31,12 @@ function GoogleIcon() {
 }
 
 export default function LoginScreen({ navigation }: Props) {
-  const { setUser } = useSession();
-  const { reset } = useSetup();
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ Let Expo automatically format the exact URI it needs
+  // Let Expo automatically format the exact URI it needs
   const redirectUri = makeRedirectUri({
     scheme: "billwise-blue",
     path: "expo-auth-session",
@@ -55,27 +50,27 @@ export default function LoginScreen({ navigation }: Props) {
 
   useEffect(() => {
     if (response?.type === "success") {
-      const { authentication } = response;
-      if (authentication?.accessToken) {
-        // Fetch the user's email using the Google Access Token
-        fetch("https://www.googleapis.com/userinfo/v2/me", {
-          headers: { Authorization: `Bearer ${authentication.accessToken}` },
-        })
-          .then((res) => res.json())
-          .then(async (data) => {
-            setLoading(true);
-            try {
-              // Send email to backend to trigger the OTP email
-              await sendGoogleOtp(data.email);
-              // Navigate to the OTP screen, passing the email
-              navigation.navigate("GoogleOtp", { email: data.email });
-            } catch (e) {
-              setError(errorMessage(e));
-            } finally {
-              setLoading(false);
-            }
+      // The backend expects the raw id_token for Google login
+      const { id_token } = response.params;
+      
+      if (id_token) {
+        setLoading(true);
+        setError(null);
+        
+        // Send token to backend to trigger the OTP email
+        sendGoogleOtp(id_token)
+          .then((res) => {
+            // Navigate to the OTP screen with the challenge_id
+            navigation.navigate("GoogleOtp", { 
+              email: res.email || "", // Backend returns a masked email
+              challengeId: res.challenge_id, 
+              type: "google" 
+            });
           })
-          .catch(() => setError("Failed to get Google profile."));
+          .catch((e) => setError(errorMessage(e)))
+          .finally(() => setLoading(false));
+      } else {
+        setError("Google did not return a valid ID token.");
       }
     } else if (response?.type === "error") {
       setError(`Google login failed: ${response.error?.message || "Unknown error"}`);
@@ -96,14 +91,18 @@ export default function LoginScreen({ navigation }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const user = await login(email, pass);
-      clearDataCache();
-      setUser(user);
-      reset(); // never carry over another account's unfinished setup
-      // Returning user -> Home. Signed up but never finished setup -> Setup 1.
-      navigation.reset({ index: 0, routes: [{ name: user.setupCompleted ? "Home" : "SetupHousehold" }] });
+      // 1. Send credentials to trigger the OTP email
+      const res = await login(email, pass);
+      
+      // 2. Navigate to the OTP screen with the challenge_id
+      navigation.navigate("GoogleOtp", { 
+        email: email.trim().toLowerCase(), 
+        challengeId: res.challenge_id,
+        type: "login" 
+      });
     } catch (e) {
       setError(errorMessage(e));
+    } finally {
       setLoading(false);
     }
   };

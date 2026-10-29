@@ -2,6 +2,7 @@
   "expo": {
     "name": "billwise-blue",
     "slug": "billwise-blue",
+    "scheme": "billwise-blue",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

@@ -5,6 +5,7 @@ import type { RootStackParamList } from "./routes";
 import SplashScreen from "../screens/auth/SplashScreen";
 import LoginScreen from "../screens/auth/LoginScreen";
 import SignupScreen from "../screens/auth/SignupScreen";
+import GoogleOtpScreen from "../screens/auth/GoogleOtpScreen"; // ✅ Added import
 
 import SetupHouseholdScreen from "../screens/setup/SetupHouseholdScreen";
 import SetupIncomeScreen from "../screens/setup/SetupIncomeScreen";
@@ -40,6 +41,9 @@ export default function RootNavigator() {
       <Stack.Screen name="Splash" component={SplashScreen} options={{ animation: "fade" }} />
       <Stack.Screen name="Login" component={LoginScreen} options={{ gestureEnabled: false }} />
       <Stack.Screen name="Signup" component={SignupScreen} />
+      
+      {/* ✅ Added Google OTP Screen */}
+      <Stack.Screen name="GoogleOtp" component={GoogleOtpScreen} />
 
       {/* First-time setup wizard */}
       <Stack.Screen name="SetupHousehold" component={SetupHouseholdScreen} options={{ gestureEnabled: false }} />

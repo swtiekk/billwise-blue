@@ -4,7 +4,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { C, sh } from "../../theme";
 import { Text } from "../../ui/Text";
 import { Btn } from "../../components/Atoms";
-import { verifyGoogleOtp } from "../../api/auth";
+import { verifyGoogleOtp, verifyLoginOtp } from "../../api/auth";
 import { errorMessage } from "../../api/client";
 import { useSession } from "../../context/SessionContext";
 import { useSetup } from "../../context/SetupContext";
@@ -14,7 +14,8 @@ import type { RootStackParamList } from "../../navigation/routes";
 type Props = NativeStackScreenProps<RootStackParamList, "GoogleOtp">;
 
 export default function GoogleOtpScreen({ navigation, route }: Props) {
-  const { email } = route.params;
+  // ✅ Grab the challengeId from the route params
+  const { email, challengeId, type } = route.params;
   const { setUser } = useSession();
   const { reset } = useSetup();
   
@@ -26,8 +27,17 @@ export default function GoogleOtpScreen({ navigation, route }: Props) {
     if (otp.length < 6) return setError("Please enter the 6-digit code.");
     setLoading(true);
     setError(null);
+    
     try {
-      const user = await verifyGoogleOtp(email, otp);
+      let user;
+      
+      // ✅ Pass the challengeId to the API functions
+      if (type === "google") {
+        user = await verifyGoogleOtp(challengeId, otp);
+      } else {
+        user = await verifyLoginOtp(challengeId, otp);
+      }
+
       clearDataCache();
       setUser(user);
       reset();

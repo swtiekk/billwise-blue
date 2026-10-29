@@ -17,7 +17,8 @@ export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
   Signup: undefined;
-  GoogleOtp: { email: string }; // <-- Added this line
+  // ✅ Added challengeId to pass the backend verification token
+  GoogleOtp: { email: string; challengeId: string; type?: "google" | "login" }; 
 
   // first-time setup
   SetupHousehold: undefined;
