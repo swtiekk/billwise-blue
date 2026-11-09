@@ -42,7 +42,8 @@ export default function LoginScreen({ navigation }: Props) {
     path: "expo-auth-session",
   });
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
+  // ✅ Changed to useIdTokenAuthRequest to force Google to return the ID token
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     webClientId: "799214587974-8fq3us7rhqf1ljb5mjrusc8epnq8rq91.apps.googleusercontent.com",
     androidClientId: "799214587974-8fq3us7rhqf1ljb5mjrusc8epnq8rq91.apps.googleusercontent.com",
     redirectUri: Platform.OS === "web" ? redirectUri : "https://auth.expo.io/@anonymous/billwise-blue",
