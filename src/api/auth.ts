@@ -29,6 +29,10 @@ export async function fetchSessionUser(): Promise<SessionUser> {
   return toUser(await api.get<Household>("/api/household/"));
 }
 
+// ---------------------------------------------------------------
+// Password Authentication & Registration
+// ---------------------------------------------------------------
+
 /**
  * STEP 1 of Login: Send credentials to backend to trigger the OTP email.
  * Returns the response so the frontend can grab the challenge_id.
@@ -58,13 +62,17 @@ export async function verifyLoginOtp(challengeId: string, otp: string): Promise<
   return fetchSessionUser();
 }
 
+/**
+ * STEP 1 of Register: Create account and trigger OTP email.
+ * Returns the response so the frontend can grab the challenge_id.
+ */
 export async function register(input: {
   firstName: string;
   lastName: string;
   email: string;
   password: string;
-}): Promise<SessionUser> {
-  const res = await api.post<AuthResponse>(
+}): Promise<any> {
+  return api.post(
     "/api/auth/register/",
     {
       first_name: input.firstName.trim(),
@@ -74,8 +82,23 @@ export async function register(input: {
     },
     { auth: false }
   );
+}
+
+/**
+ * STEP 2 of Register: Verify the OTP using the challenge_id.
+ * Saves tokens and returns the user.
+ */
+export async function verifyRegisterOtp(challengeId: string, otp: string): Promise<SessionUser> {
+  const res = await api.post<AuthResponse>(
+    "/api/auth/verify-email/",
+    { 
+      challenge_id: challengeId, 
+      otp: otp.trim() 
+    },
+    { auth: false }
+  );
   await saveTokens(res.tokens.access, res.tokens.refresh);
-  return toUser(res);
+  return fetchSessionUser();
 }
 
 /** Never throws: local tokens are always cleared, server blacklist is best-effort. */
@@ -136,4 +159,19 @@ export async function verifyGoogleOtp(challengeId: string, otp: string): Promise
   );
   await saveTokens(res.tokens.access, res.tokens.refresh);
   return fetchSessionUser();
+}
+
+// ---------------------------------------------------------------
+// Resend OTP
+// ---------------------------------------------------------------
+
+/**
+ * Resends an OTP for any flow (Google, Login, Register) using the challenge_id.
+ */
+export async function resendOtp(challengeId: string): Promise<{ message: string }> {
+  return api.post(
+    "/api/auth/google/resend-otp/", // We are reusing this endpoint for all types
+    { challenge_id: challengeId },
+    { auth: false }
+  );
 }

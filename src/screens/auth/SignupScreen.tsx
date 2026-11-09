@@ -9,16 +9,11 @@ import { BrandMark } from "../../components/BrandMark";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
 import { register } from "../../api/auth";
 import { errorMessage } from "../../api/client";
-import { useSession } from "../../context/SessionContext";
-import { useSetup } from "../../context/SetupContext";
-import { clearDataCache } from "../../hooks/dataCache";
 import type { RootStackParamList } from "../../navigation/routes";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Signup">;
 
 export default function SignupScreen({ navigation }: Props) {
-  const { setUser } = useSession();
-  const { reset } = useSetup();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,13 +21,11 @@ export default function SignupScreen({ navigation }: Props) {
   const [confirm, setConfirm] = useState("");
   const [agreed, setAgreed] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null); // only for things that belong to no single field
+  const [error, setError] = useState<string | null>(null);
 
-  // One message per field, shown right under the field that is wrong.
   type FieldKey = "firstName" | "lastName" | "email" | "pass" | "confirm" | "agreed";
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
 
-  /** Edit a field and clear only that field's error. */
   const edit = (key: FieldKey, set: (v: string) => void) => (v: string) => {
     set(v);
     setError(null);
@@ -59,14 +52,17 @@ export default function SignupScreen({ navigation }: Props) {
 
     setLoading(true);
     try {
-      const user = await register({ firstName, lastName, email, password: pass });
-      clearDataCache();
-      setUser(user);
-      reset();
-      navigation.reset({ index: 0, routes: [{ name: "SetupHousehold" }] }); // new user -> Setup 1
+      // 1. Create account (returns challenge_id)
+      const res = await register({ firstName, lastName, email, password: pass });
+      
+      // 2. Navigate to OTP screen
+      navigation.navigate("GoogleOtp", { 
+        email: email.trim().toLowerCase(), 
+        challengeId: res.challenge_id,
+        type: "register"
+      });
     } catch (e) {
       const msg = errorMessage(e);
-      // Put a server error on the field it is about (e.g. "email already registered").
       if (/e-?mail/i.test(msg)) setErrors({ email: msg });
       else if (/password/i.test(msg)) setErrors({ pass: msg });
       else setError(msg);
