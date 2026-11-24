@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import { BASE_URL } from "./client";
 import { getAccessToken } from "./tokenStorage";
@@ -144,6 +145,19 @@ function guessMimeType(filename: string): string {
   return "image/jpeg";
 }
 
+/** "data:image/png;base64,AAAA..." -> "image/png" (empty string if it can't be read). */
+function mimeFromDataUri(uri: string): string {
+  const semicolon = uri.indexOf(";");
+  const comma = uri.indexOf(",");
+  const end = semicolon > 0 ? semicolon : comma;
+  return end > 5 ? uri.slice(5, end) : "";
+}
+
+/** A browser hands back the whole picture as a data: URI; never print thousands of characters of it. */
+function shortUri(uri: string): string {
+  return uri.length > 120 ? `${uri.slice(0, 60)}...(${uri.length} characters)` : uri;
+}
+
 /**
  * Print the OCR response in a way that's easy to read in the Metro terminal:
  * the extracted fields one per line, then the raw OCR text wrapped in markers.
@@ -157,7 +171,7 @@ function logScanResponse(status: number, bodyText: string) {
       due_date: parsed?.extracted?.due_date ?? null,
       merchant: parsed?.extracted?.merchant ?? null,
     });
-    console.log("[scanBill] method:", parsed?.method ?? parsed?.source_type ?? "?", 
+    console.log("[scanBill] method:", parsed?.method ?? parsed?.source_type ?? "?",
                 "confidence:", parsed?.confidence ?? "?");
     console.log("[scanBill] raw_text START >>>");
     console.log(parsed?.raw_text ?? "(no raw_text)");
@@ -169,6 +183,32 @@ function logScanResponse(status: number, bodyText: string) {
 }
 
 /**
+ * Attach the picture as the "image" field. A phone and a browser need different shapes:
+ *
+ * - On a phone, React Native's networking understands { uri, name, type } and reads the file
+ *   itself.
+ * - In a browser that object is NOT understood: it is sent as the text "[object Object]", the
+ *   server finds no file, and answers 'No file provided. Use form field "image"'. A browser needs
+ *   real bytes, so read them from the picked image's address (a blob: or data: URI) and attach
+ *   them as a Blob with a file name.
+ */
+async function addImagePart(form: FormData, uri: string, filename: string, mimeType: string): Promise<void> {
+  if (Platform.OS === "web") {
+    let blob: Blob;
+    try {
+      blob = await (await fetch(uri)).blob();
+    } catch {
+      throw new Error("Could not read the selected file. Please try again.");
+    }
+    // Make sure the file carries the right type, whatever the browser reported
+    const typed = blob.slice(0, blob.size, mimeType || blob.type || "image/jpeg");
+    (form as any).append("image", typed, filename);
+    return;
+  }
+  form.append("image", { uri, name: filename, type: mimeType } as any);
+}
+
+/**
  * Upload via XMLHttpRequest + FormData.
  *
  * Why not the other options:
@@ -176,20 +216,20 @@ function logScanResponse(status: number, bodyText: string) {
  *   for files that come from DocumentPicker.
  * - Global fetch + FormData fails on this SDK with "Unsupported FormDataPart implementation".
  * - XHR goes through React Native's own networking, which supports { uri, name, type }
- *   form parts and reads file:// URIs natively.
+ *   form parts and reads file:// URIs natively. In a browser it is the normal XHR.
  *
  * Do NOT set Content-Type manually: the multipart boundary is added for you.
  */
-function uploadViaXhr(
+async function uploadViaXhr(
   uri: string,
   filename: string,
   mimeType: string,
   token: string | null
 ): Promise<ScanResponse> {
-  return new Promise((resolve, reject) => {
-    const form = new FormData();
-    form.append("image", { uri, name: filename, type: mimeType } as any);
+  const form = new FormData();
+  await addImagePart(form, uri, filename, mimeType);
 
+  return new Promise<ScanResponse>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${BASE_URL}/api/bills/scan/`);
     xhr.timeout = 60000;
@@ -225,13 +265,16 @@ function uploadViaXhr(
     // Log the actual file size so we can verify the phone isn't uploading a
     // downsampled thumbnail instead of the full-resolution photo. This runs
     // in parallel with the upload; the log appears in Metro once it resolves.
-    FileSystem.getInfoAsync(uri)
-      .then((info: any) => {
-        console.log("[uploadViaXhr] file size:", info?.size ?? "unknown", "bytes");
-      })
-      .catch(() => {
-        console.log("[uploadViaXhr] could not read file size for", uri);
-      });
+    // (Not available in a browser: expo-file-system has no file paths to read there.)
+    if (Platform.OS !== "web") {
+      FileSystem.getInfoAsync(uri)
+        .then((info: any) => {
+          console.log("[uploadViaXhr] file size:", info?.size ?? "unknown", "bytes");
+        })
+        .catch(() => {
+          console.log("[uploadViaXhr] could not read file size for", uri);
+        });
+    }
 
     xhr.send(form);
   });
@@ -246,12 +289,19 @@ export async function scanBill(
   name?: string | null,
   mimeType?: string | null
 ): Promise<ScanResponse> {
-  const filename = name || uri.split("/").pop() || "bill.jpg";
-  const type = mimeType || guessMimeType(filename);
+  // On the web the picked image's address is a long data: or blob: string, not a file path
+  const isInline = uri.startsWith("data:") || uri.startsWith("blob:");
+  const type =
+    mimeType ||
+    (uri.startsWith("data:") ? mimeFromDataUri(uri) : "") ||
+    guessMimeType(name || uri);
+  const extension = type === "application/pdf" ? "pdf" : type === "image/png" ? "png" : "jpg";
+  const filename =
+    name || (isInline ? `bill-${Date.now()}.${extension}` : uri.split("/").pop() || "bill.jpg");
 
   const token = await getAccessToken();
 
-  console.log("[scanBill] uri:", uri);
+  console.log("[scanBill] uri:", shortUri(uri));
   console.log("[scanBill] filename:", filename);
   console.log("[scanBill] mimeType:", type);
   console.log("[scanBill] url:", `${BASE_URL}/api/bills/scan/`);
