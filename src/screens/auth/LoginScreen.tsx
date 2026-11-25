@@ -10,7 +10,10 @@ import { Text } from "../../ui/Text";
 import { Field, Btn } from "../../components/Atoms";
 import { BrandMark } from "../../components/BrandMark";
 import { FocusedStatusBar } from "../../components/FocusedStatusBar";
-import { login, sendGoogleOtp } from "../../api/auth";
+import { login, signInWithGoogle, type SessionUser } from "../../api/auth";
+import { useSession } from "../../context/SessionContext";
+import { useSetup } from "../../context/SetupContext";
+import { clearDataCache } from "../../hooks/dataCache";
 import { errorMessage } from "../../api/client";
 import type { RootStackParamList } from "../../navigation/routes";
 
@@ -35,6 +38,16 @@ export default function LoginScreen({ navigation }: Props) {
   const [pass, setPass] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { setUser } = useSession();
+  const { reset } = useSetup();
+
+  // Same finish as the OTP screen: store the user, then open Home or Setup.
+  const finishSignIn = (user: SessionUser) => {
+    clearDataCache();
+    setUser(user);
+    reset();
+    navigation.reset({ index: 0, routes: [{ name: user.setupCompleted ? "Home" : "SetupHousehold" }] });
+  };
 
   // Let Expo automatically format the exact URI it needs
   const redirectUri = makeRedirectUri({
@@ -58,18 +71,13 @@ export default function LoginScreen({ navigation }: Props) {
         setLoading(true);
         setError(null);
         
-        // Send token to backend to trigger the OTP email
-        sendGoogleOtp(id_token)
-          .then((res) => {
-            // Navigate to the OTP screen with the challenge_id
-            navigation.navigate("GoogleOtp", { 
-              email: res.email || "", // Backend returns a masked email
-              challengeId: res.challenge_id, 
-              type: "google" 
-            });
-          })
-          .catch((e) => setError(errorMessage(e)))
-          .finally(() => setLoading(false));
+        // Google already verified the email, so the backend signs us in directly (no OTP).
+        signInWithGoogle(id_token)
+          .then(finishSignIn)
+          .catch((e) => {
+            setError(errorMessage(e));
+            setLoading(false);
+          });
       } else {
         setError("Google did not return a valid ID token.");
       }
@@ -92,14 +100,19 @@ export default function LoginScreen({ navigation }: Props) {
     setLoading(true);
     setError(null);
     try {
-      // 1. Send credentials to trigger the OTP email
       const res = await login(email, pass);
-      
-      // 2. Navigate to the OTP screen with the challenge_id
-      navigation.navigate("GoogleOtp", { 
-        email: email.trim().toLowerCase(), 
-        challengeId: res.challenge_id,
-        type: "login" 
+
+      if (!res.otpRequired) {
+        // Trusted device: signed in without an email code.
+        finishSignIn(res.user);
+        return;
+      }
+
+      // New device: ask for the emailed code.
+      navigation.navigate("GoogleOtp", {
+        email: res.email,
+        challengeId: res.challengeId,
+        type: "login",
       });
     } catch (e) {
       setError(errorMessage(e));

@@ -1,5 +1,13 @@
 import { api, ApiError } from "./client";
-import { saveTokens, clearTokens, getRefreshToken, getAccessToken } from "./tokenStorage";
+import { Platform } from "react-native";
+import {
+  saveTokens,
+  clearTokens,
+  getRefreshToken,
+  getAccessToken,
+  getDeviceToken,
+  saveDeviceToken,
+} from "./tokenStorage";
 import type { AuthResponse, Household } from "./types";
 import { clearReminders } from "../notifications/reminders";
 
@@ -33,32 +41,51 @@ export async function fetchSessionUser(): Promise<SessionUser> {
 // Password Authentication & Registration
 // ---------------------------------------------------------------
 
+export type LoginResult =
+  | { otpRequired: true; challengeId: string; email: string }
+  | { otpRequired: false; user: SessionUser };
+
 /**
- * STEP 1 of Login: Send credentials to backend to trigger the OTP email.
- * Returns the response so the frontend can grab the challenge_id.
+ * STEP 1 of Login. Sends the saved device token, if there is one.
+ * - Known (trusted) device: the backend returns tokens right away, no OTP.
+ * - New device: the backend emails a code and returns a challenge_id.
  */
-export async function login(email: string, password: string): Promise<any> {
-  return api.post(
+export async function login(email: string, password: string): Promise<LoginResult> {
+  const cleanEmail = email.trim().toLowerCase();
+  const deviceToken = await getDeviceToken();
+  const res = await api.post<any>(
     "/api/auth/login/",
-    { email: email.trim().toLowerCase(), password },
+    { email: cleanEmail, password, ...(deviceToken ? { device_token: deviceToken } : {}) },
     { auth: false }
   );
+
+  if (res?.otp_required === false && res?.tokens) {
+    await saveTokens(res.tokens.access, res.tokens.refresh);
+    return { otpRequired: false, user: await fetchSessionUser() };
+  }
+  return { otpRequired: true, challengeId: res.challenge_id, email: cleanEmail };
 }
 
 /**
  * STEP 2 of Login: Verify the OTP using the challenge_id sent by the backend.
+ * Also trusts this device for 30 days so the next login skips the email code.
  * Saves tokens and returns the user.
  */
 export async function verifyLoginOtp(challengeId: string, otp: string): Promise<SessionUser> {
-  const res = await api.post<AuthResponse>(
+  const res = await api.post<AuthResponse & { trusted_device?: { device_token: string } }>(
     "/api/auth/login/verify-otp/",
-    { 
-      challenge_id: challengeId, 
-      otp: otp.trim() 
+    {
+      challenge_id: challengeId,
+      otp: otp.trim(),
+      trust_device: true,
+      device_name: Platform.OS === "web" ? "Web browser" : Platform.OS === "ios" ? "iPhone" : "Android phone",
     },
     { auth: false }
   );
   await saveTokens(res.tokens.access, res.tokens.refresh);
+  if (res.trusted_device?.device_token) {
+    await saveDeviceToken(res.trusted_device.device_token);
+  }
   return fetchSessionUser();
 }
 
@@ -130,7 +157,26 @@ export async function resolveStart(): Promise<{ route: StartRoute; user: Session
 }
 
 // ---------------------------------------------------------------
-// Google OTP Authentication
+// Google Sign-In (no OTP: Google already verified the email)
+// ---------------------------------------------------------------
+
+/**
+ * Sends the Google ID token to the backend. The backend signs the user in
+ * (creating the account on first use) and returns tokens right away.
+ * Saves the tokens and returns the user.
+ */
+export async function signInWithGoogle(googleToken: string): Promise<SessionUser> {
+  const res = await api.post<AuthResponse>(
+    "/api/auth/google/",
+    { google_token: googleToken },
+    { auth: false }
+  );
+  await saveTokens(res.tokens.access, res.tokens.refresh);
+  return fetchSessionUser();
+}
+
+// ---------------------------------------------------------------
+// Google OTP Authentication (old flow, no longer used by the backend's Google login)
 // ---------------------------------------------------------------
 
 /**
